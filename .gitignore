@@ -1,0 +1,23 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.properties
+
+# Node
+node_modules/
+dist/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 工具
+tools/
+.codegraph/
+.omo/
+*.bat

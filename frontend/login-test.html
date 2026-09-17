@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRS 登录测试(免 Node.js)</title>
+<style>
+  body { font-family: sans-serif; max-width: 480px; margin: 60px auto; padding: 20px; }
+  input, button { display: block; width: 100%; margin: 8px 0; padding: 10px; box-sizing: border-box; }
+  button { background: #409eff; color: #fff; border: none; cursor: pointer; border-radius: 4px; }
+  button:hover { background: #66b1ff; }
+  .result { margin-top: 20px; padding: 12px; background: #f5f7fa; border-radius: 4px; word-break: break-all; }
+  .error { color: #f56c6c; }
+  .quick { display: flex; gap: 8px; }
+  .quick button { background: #909399; font-size: 13px; padding: 6px; }
+</style>
+</head>
+<body>
+<h2>课程注册系统 - 登录测试</h2>
+<p>后端地址: <code>http://localhost:8080/api</code></p>
+
+<label>用户名</label>
+<input id="username" type="text" value="registrar">
+
+<label>密码</label>
+<input id="password" type="password" value="registrar">
+
+<button onclick="doLogin()">登录</button>
+
+<div class="quick">
+  <button onclick="fill('registrar','registrar')">Registrar</button>
+  <button onclick="fill('professor','professor')">Professor</button>
+  <button onclick="fill('student','student')">Student</button>
+</div>
+
+<div id="result" class="result" style="display:none"></div>
+
+<script>
+function fill(u, p) {
+  document.getElementById('username').value = u;
+  document.getElementById('password').value = p;
+}
+
+async function doLogin() {
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  const el = document.getElementById('result');
+  el.style.display = 'block';
+  el.classList.remove('error');
+  el.textContent = '请求中...';
+
+  try {
+    const resp = await fetch('http://localhost:8080/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      el.innerHTML = '<strong>登录成功!</strong><br><br>' +
+        'Token: ' + data.token.substring(0, 50) + '...<br>' +
+        '用户ID: ' + data.userId + '<br>' +
+        '用户名: ' + data.username + '<br>' +
+        '姓名: ' + data.name + '<br>' +
+        '角色: ' + data.role;
+    } else {
+      el.classList.add('error');
+      el.textContent = '登录失败: ' + (data.message || resp.status);
+    }
+  } catch (e) {
+    el.classList.add('error');
+    el.textContent = '请求失败: ' + e.message + '\n(确保后端已启动)';
+  }
+}
+</script>
+</body>
+</html>

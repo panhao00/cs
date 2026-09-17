@@ -1,0 +1,203 @@
+@startuml Wylie College 课程注册系统 - ER图
+' ========================================
+' Wylie College 课程注册系统 (CRS)
+' ER实体关系图 - Entity Relationship Diagram
+' 基于 schema.sql 绘制
+' ========================================
+
+skinparam entity {
+  BackgroundColor #FEFECE
+  BorderColor #A80036
+  FontSize 12
+}
+skinparam note {
+  BackgroundColor #FFF9C4
+  BorderColor #F9A825
+}
+skinparam linetype ortho
+
+title Wylie College 课程注册系统 - ER实体关系图
+
+' ========== app_user 用户表 ==========
+entity "app_user" as AU {
+  * **id** : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * username : VARCHAR(50) <<UK, NOT NULL>>
+  * password_hash : VARCHAR(255) <<NOT NULL>>
+  * role : VARCHAR(20) <<NOT NULL>>
+  * name : VARCHAR(100) <<NOT NULL>>
+  dob : DATE
+  ssn : VARCHAR(20)
+  status : VARCHAR(20) <<DEFAULT 'ACTIVE'>>
+  graduation_date : DATE
+  department : VARCHAR(50)
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+' ========== course 课程目录 ==========
+entity "course" as CO {
+  * **course_id** : VARCHAR(20) <<PK>>
+  --
+  * title : VARCHAR(200) <<NOT NULL>>
+  department : VARCHAR(50)
+  credits : INT <<DEFAULT 3>>
+  prerequisite_id : VARCHAR(20) <<FK>>
+}
+
+' ========== course_offering 课程开设 ==========
+entity "course_offering" as COf {
+  * **offering_id** : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * course_id : VARCHAR(20) <<FK, NOT NULL>>
+  * semester : VARCHAR(20) <<NOT NULL>>
+  professor_id : BIGINT <<FK>>
+  days : VARCHAR(20)
+  times : VARCHAR(50)
+  room : VARCHAR(50)
+  max_capacity : INT <<DEFAULT 10>>
+  status : VARCHAR(20) <<DEFAULT 'OPEN'>>
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+  version : BIGINT <<DEFAULT 0>>
+}
+
+' ========== schedule 课表 ==========
+entity "schedule" as S {
+  * **schedule_id** : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * student_id : BIGINT <<FK, NOT NULL>>
+  * semester : VARCHAR(20) <<NOT NULL>>
+  state : VARCHAR(20) <<DEFAULT 'DRAFT'>>
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+' ========== schedule_item 课表项 ==========
+entity "schedule_item" as SI {
+  * **id** : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * schedule_id : BIGINT <<FK, NOT NULL>>
+  * offering_id : BIGINT <<FK, NOT NULL>>
+  * kind : VARCHAR(20) <<NOT NULL>>
+  status : VARCHAR(20) <<DEFAULT 'SELECTED'>>
+}
+
+' ========== enrollment 选课记录 ==========
+entity "enrollment" as E {
+  * **id** : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * offering_id : BIGINT <<FK, NOT NULL>>
+  * student_id : BIGINT <<FK, NOT NULL>>
+  status : VARCHAR(20) <<DEFAULT 'ENROLLED'>>
+  enrolled_at : TIMESTAMP
+  --
+  <<UNIQUE(offering_id, student_id)>>
+}
+
+' ========== grade 成绩 ==========
+entity "grade" as G {
+  * **id** : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * offering_id : BIGINT <<FK, NOT NULL>>
+  * student_id : BIGINT <<FK, NOT NULL>>
+  grade : VARCHAR(2)
+  updated_at : TIMESTAMP
+  --
+  <<UNIQUE(offering_id, student_id)>>
+}
+
+' ========== bill 账单 ==========
+entity "bill" as B {
+  * **bill_id** : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * student_id : BIGINT <<FK, NOT NULL>>
+  * semester : VARCHAR(20) <<NOT NULL>>
+  * amount : DECIMAL(10,2) <<NOT NULL>>
+  status : VARCHAR(20) <<DEFAULT 'PENDING'>>
+  sent_at : TIMESTAMP
+  created_at : TIMESTAMP
+}
+
+' ========== audit_log 审计日志 ==========
+entity "audit_log" as AL {
+  * **id** : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  actor_id : BIGINT
+  * action : VARCHAR(100) <<NOT NULL>>
+  target_type : VARCHAR(50)
+  target_id : BIGINT
+  details : VARCHAR(1000)
+  created_at : TIMESTAMP
+}
+
+' ========== notification 通知 ==========
+entity "notification" as N {
+  * **id** : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * student_id : BIGINT <<FK, NOT NULL>>
+  * type : VARCHAR(30) <<NOT NULL>>
+  * title : VARCHAR(200) <<NOT NULL>>
+  content : TEXT
+  offering_id : BIGINT
+  course_id : VARCHAR(20)
+  is_read : BOOLEAN <<DEFAULT FALSE>>
+  created_at : TIMESTAMP
+}
+
+' ========== system_setting 系统设置 ==========
+entity "system_setting" as SS {
+  * **id** : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * setting_key : VARCHAR(100) <<UK, NOT NULL>>
+  * setting_value : VARCHAR(500) <<NOT NULL>>
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+' ========== 关系 ==========
+AU ||--o{ S : "学生拥有课表\nstudent_id"
+AU ||--o{ E : "学生选课记录\nstudent_id"
+AU ||--o{ G : "学生成绩\nstudent_id"
+AU ||--o{ B : "学生账单\nstudent_id"
+AU ||--o{ N : "学生通知\nstudent_id"
+AU ||--o{ COf : "教授授课\nprofessor_id"
+AU ||--o{ AL : "审计操作\nactor_id"
+
+CO ||--o{ COf : "课程开设\ncourse_id"
+CO ||--o| CO : "先修课\nprerequisite_id"
+
+COf ||--o{ SI : "课表项引用\noffering_id"
+COf ||--o{ E : "选课名单\noffering_id"
+COf ||--o{ G : "班级成绩\noffering_id"
+
+S ||--o{ SI : "课表包含\nschedule_id"
+
+' ========== 索引注释 ==========
+note bottom of AU
+  性能索引:
+  - idx_schedule_student_semester
+  - idx_enrollment_student
+  - idx_grade_student
+  - idx_bill_student
+  - idx_audit_log_actor
+  - idx_notification_student
+end note
+
+note right of COf
+  性能索引:
+  - idx_offering_semester_status
+  - idx_offering_professor
+end note
+
+note bottom of SI
+  性能索引:
+  - idx_schedule_item_schedule
+end note
+
+note bottom of E
+  性能索引:
+  - idx_enrollment_offering
+end note
+
+@enduml

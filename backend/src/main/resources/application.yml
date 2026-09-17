@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: crs
+  # 默认使用 dev profile(H2 内存库),生产环境通过 --spring.profiles.active=prod 切换
+  profiles:
+    active: dev
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none  # 使用 schema.sql + data.sql 显式管理 schema
+  properties:
+    hibernate:
+      format_sql: true
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+# CRS 业务配置
+crs:
+  security:
+    # JWT 密钥——生产环境必须通过环境变量 JWT_SECRET 覆盖
+    jwt-secret: ${JWT_SECRET:crs-dev-secret-key-please-change-in-production-2026}
+    jwt-expiration-ms: 86400000  # 24h
+  registration:
+    # 注册周期状态: open | add_drop | closed
+    current-phase: open
+  # 选课业务规则
+  rules:
+    max-primary: 4
+    max-alternate: 2
+    offering-max-students: 10
+    offering-min-students: 3
+
+logging:
+  level:
+    com.crs: INFO
+    org.hibernate.SQL: DEBUG

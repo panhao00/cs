@@ -1,0 +1,117 @@
+@startuml Wylie College 课程注册系统 - 用例图
+' ========================================
+' Wylie College 课程注册系统 (CRS)
+' 用例图 - Use Case Diagram
+' ========================================
+
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FEFECE
+  BorderColor #A80036
+  ArrowColor #A80036
+  FontSize 13
+}
+skinparam actor {
+  BackgroundColor #FEFECE
+  BorderColor #A80036
+  FontSize 14
+}
+skinparam rectangle {
+  BackgroundColor #E8F5E9
+  BorderColor #4CAF50
+}
+skinparam note {
+  BackgroundColor #FFF9C4
+  BorderColor #F9A825
+}
+
+title Wylie College 课程注册系统 (CRS) 用例图
+
+rectangle "课程注册系统 (CRS)" as CRS {
+
+  ' ========== 认证 ==========
+  usecase "登录认证\n(Login)" as UC_Login
+  usecase "输入用户名密码" as UC_InputCred
+  usecase "验证身份" as UC_Verify
+  usecase "生成JWT令牌" as UC_JWT
+
+  UC_InputCred ..> UC_Verify : <<include>>
+  UC_Verify ..> UC_JWT : <<include>>
+
+  ' ========== 学生用例 ==========
+  usecase "选课注册\n(Register for\nCourses)" as UC_Register
+  usecase "创建课表" as UC_CreateSchedule
+  usecase "选择课程开设\n(主选/备选)" as UC_SelectOffering
+  usecase "提交课表" as UC_SubmitSchedule
+  usecase "校验选课规则" as UC_ValidateRules
+  usecase "查看成绩单\n(View Report Card)" as UC_ReportCard
+
+  UC_Register ..> UC_CreateSchedule : <<include>>
+  UC_Register ..> UC_SelectOffering : <<include>>
+  UC_Register ..> UC_SubmitSchedule : <<include>>
+  UC_SubmitSchedule ..> UC_ValidateRules : <<include>>
+
+  ' ========== 教授用例 ==========
+  usecase "选择授课课程\n(Select Courses\nto Teach)" as UC_Teach
+  usecase "提交成绩\n(Submit Grades)" as UC_Grades
+
+  ' ========== 注册主任用例 ==========
+  usecase "维护学生信息\n(Maintain Student)" as UC_MaintainStudent
+  usecase "维护教授信息\n(Maintain Professor)" as UC_MaintainProf
+  usecase "关闭注册\n(Close Registration)" as UC_CloseReg
+  usecase "查看审计日志" as UC_AuditLog
+}
+
+' ========== 参与者 ==========
+actor "学生\n(Student)" as Student
+actor "教授\n(Professor)" as Professor
+actor "注册主任\n(Registrar)" as Registrar
+
+' ========== 学生关系 ==========
+Student --> UC_Login
+Student --> UC_Register
+Student --> UC_ReportCard
+
+' ========== 教授关系 ==========
+Professor --> UC_Login
+Professor --> UC_Teach
+Professor --> UC_Grades
+
+' ========== 注册主任关系 ==========
+Registrar --> UC_Login
+Registrar --> UC_MaintainStudent
+Registrar --> UC_MaintainProf
+Registrar --> UC_CloseReg
+Registrar --> UC_AuditLog
+
+' ========== 扩展关系 ==========
+UC_Register ..> UC_CloseReg : <<extend>>\n注册截止后\n无法选课
+UC_Teach ..> UC_CloseReg : <<extend>>\n注册截止后\n无法选课
+
+' ========== 注释 ==========
+note right of UC_ValidateRules
+  校验内容:
+  1. 先修课是否通过
+  2. 课程容量是否已满
+  3. 时间是否冲突
+  4. 主选<=4门, 备选<=2门
+end note
+
+note bottom of UC_CloseReg
+  关闭注册6步流程:
+  1. 校验注册状态
+  2. 检查教授指派+最小人数
+  3. Leveling课表均衡
+  4. 二次检查
+  5. 通知Billing系统
+  6. 通知所有学生
+end note
+
+note right of UC_ReportCard
+  显示所有学期的
+  课程、成绩、学分
+end note
+
+@enduml

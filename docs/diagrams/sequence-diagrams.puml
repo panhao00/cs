@@ -1,0 +1,384 @@
+@startuml Wylie College 课程注册系统 - 序列图
+' ========================================
+' Wylie College 课程注册系统 (CRS)
+' 关键业务序列图 - Sequence Diagrams
+' ========================================
+
+skinparam sequence {
+  ArrowColor #A80036
+  ActorBorderColor #A80036
+  LifeLineBorderColor #A80036
+  ParticipantBackgroundColor #FEFECE
+  ParticipantBorderColor #A80036
+  NoteBackgroundColor #FFF9C4
+  NoteBorderColor #F9A825
+  FontSize 12
+}
+
+title Wylie College 课程注册系统 - 关键业务序列图
+
+' ==================================================
+' 图1: 学生选课提交
+' ==================================================
+== 学生选课提交流程 ==
+
+actor 学生 as Student
+participant "ScheduleController" as SC
+participant "ScheduleService" as SS
+participant "CatalogService" as CS
+participant "CourseOffering\nRepository" as OR
+participant "ScheduleRepository" as SR
+participant "ScheduleItem\nRepository" as ITR
+participant "EnrollmentRepository" as ER
+participant "NotificationService" as NS
+participant "AuditService" as AS
+database "数据库" as DB
+
+Student -> SC: POST /api/schedules\n{semester: "2026-FALL"}
+activate SC
+  SC -> SC: RoleGuard.requireStudent()
+  SC -> SS: createSchedule(studentId, semester)
+  activate SS
+    SS -> SS: assertScheduleCreationAllowed()\n检查注册阶段为open
+    SS -> SR: findByStudentIdAndSemester()
+    SR -> DB: SELECT * FROM schedule
+    DB --> SR: null (不存在)
+    SR --> SS: null
+    SS -> SR: save(new Schedule)
+    SR -> DB: INSERT INTO schedule
+    DB --> SR: scheduleId
+    SR --> SS: scheduleId
+    SS --> SC: ScheduleResponse(空课表)
+  deactivate SS
+  SC --> Student: 201 Created
+deactivate SC
+
+Student -> SC: POST /api/schedules/offerings\n{selections: [{offeringId:1, kind:PRIMARY}, ...]}
+activate SC
+  SC -> SS: selectOfferings(studentId, semester, request)
+  activate SS
+    SS -> SS: assertRegistrationActive()
+    SS -> SR: findByStudentIdAndSemester()
+    SR -> DB: SELECT
+    DB --> SR: Schedule(DRAFT)
+    SR --> SS: Schedule
+
+    loop 每个选择的课程开设
+      SS -> OR: findById(offeringId)
+      OR -> DB: SELECT * FROM course_offering
+      DB --> OR: CourseOffering
+      OR --> SS: CourseOffering
+      SS -> SS: 校验: 开设存在、状态OPEN、学期匹配
+      SS -> SS: 校验: 主选<=4, 备选<=2
+      SS -> ITR: save(new ScheduleItem)
+      ITR -> DB: INSERT INTO schedule_item
+      DB --> ITR: itemId
+      ITR --> SS: itemId
+    end
+
+    SS --> SC: ScheduleResponse(含所有项)
+  deactivate SS
+  SC --> Student: 200 OK
+deactivate SC
+
+Student -> SC: POST /api/schedules/submit
+activate SC
+  SC -> SS: submitSchedule(studentId, semester)
+  activate SS
+    SS -> SS: assertRegistrationActive()
+    SS -> SR: findByStudentIdAndSemester()
+    SR -> DB: SELECT
+    DB --> SR: Schedule(DRAFT)
+    SR --> SS: Schedule
+    SS -> ITR: findByScheduleId(scheduleId)
+    ITR -> DB: SELECT * FROM schedule_item
+    DB --> ITR: List<ScheduleItem>
+    ITR --> SS: List<ScheduleItem>
+
+    loop 每个未enrolled的PRIMARY项
+      SS -> OR: findById(offeringId)
+      OR --> SS: CourseOffering
+      SS -> SS: 1. 校验课程开放状态
+      SS -> SS: 2. 先修课校验(hasPassedPrerequisite)
+      SS -> ER: countByOfferingIdAndStatus()
+      ER -> DB: SELECT COUNT(*)
+      DB --> ER: enrolledCount
+      ER --> SS: enrolledCount
+      SS -> SS: 3. 容量校验(enrolled < maxCapacity)
+      SS -> SS: 4. 时间冲突检测(hasTimeConflict)
+
+      alt 所有校验通过
+        SS -> ER: save(new Enrollment)
+        ER -> DB: INSERT INTO enrollment
+        DB --> ER: enrollmentId
+        ER --> SS: enrollmentId
+        SS -> ITR: item.status = ENROLLED_IN
+        ITR -> DB: UPDATE schedule_item
+        SS -> NS: notifyEnrollmentSuccess()
+        SS -> AS: recordScheduleSubmit()
+      else 校验失败
+        SS -> SS: 收集错误到errors列表
+        SS -> NS: notifyEnrollmentFailed()
+      end
+    end
+
+    alt 全部成功
+      SS -> SR: state = COMMITTED
+      SR -> DB: UPDATE schedule
+      SS --> SC: SubmitResult(success=true)
+    else 部分失败
+      SS --> SC: SubmitResult(success=false, errors)
+    end
+  deactivate SS
+  SC --> Student: 200 OK + 提交结果
+deactivate SC
+
+' ==================================================
+' 图2: 教授选课授课
+' ==================================================
+== 教授选课授课流程 ==
+
+actor 教授 as Prof
+participant "TeachingController" as TC
+participant "TeachingService" as TS
+participant "CourseOffering\nRepository" as TOR
+participant "CourseRepository" as CR
+database "数据库" as DB2
+
+Prof -> TC: GET /api/teaching/offerings\n?semester=2026-FALL
+activate TC
+  TC -> TC: RoleGuard.requireProfessor()
+  TC -> TS: getEligibleOfferings(professorId, semester)
+  activate TS
+    TS -> TS: assertRegistrationOpen()
+    TS -> TOR: findBySemesterAndStatus(OPEN)
+    TOR -> DB2: SELECT * FROM course_offering\nWHERE semester=? AND status='OPEN'
+    DB2 --> TOR: List<CourseOffering>
+    TOR --> TS: List<CourseOffering>
+    TS -> CR: findAllById(courseIds)
+    CR -> DB2: SELECT * FROM course\nWHERE course_id IN (...)
+    DB2 --> CR: List<Course>
+    CR --> TS: List<Course>
+    TS -> TS: 组装TeachingOfferingDTO\n(课程名、容量、已选人数)
+    TS --> TC: List<TeachingOfferingDTO>
+  deactivate TS
+  TC --> Prof: 200 OK + 课程列表
+deactivate TC
+
+Prof -> TC: POST /api/teaching/select\n{offeringIds: [1, 3, 5]}
+activate TC
+  TC -> TS: selectCoursesToTeach(professorId, semester, offeringIds)
+  activate TS
+    TS -> TS: assertRegistrationOpen()
+
+    loop 每个选择的开设
+      TS -> TOR: findById(offeringId)
+      TOR -> DB2: SELECT * FROM course_offering
+      DB2 --> TOR: CourseOffering
+      TOR --> TS: CourseOffering
+
+      alt 开设状态不为OPEN
+        TS -> TS: 跳过该开设
+      else 有时间冲突
+        TS -> TS: hasTimeConflict(已选列表, 新开设)
+        TS -> TS: 记录冲突错误
+      else 正常
+        TS -> TOR: offering.professorId = professorId
+        TOR -> DB2: UPDATE course_offering
+        TS -> TS: 记录成功
+      end
+    end
+
+    TS -> AS: recordTeachingSelection()
+    TS --> TC: TeachingSelectionResult
+  deactivate TS
+  TC --> Prof: 200 OK + 选择结果
+deactivate TC
+
+' ==================================================
+' 图3: 关闭注册
+' ==================================================
+== 关闭注册流程 (6步) ==
+
+actor 注册主任 as Reg
+participant "RegistrationController" as RC
+participant "RegistrationService" as RS
+participant "CourseOffering\nRepository" as ROR
+participant "EnrollmentRepository" as RER
+participant "ScheduleRepository" as RSR
+participant "ScheduleItemRepository" as RIR
+participant "NotificationService" as RNS
+database "数据库" as DB3
+
+Reg -> RC: POST /api/registration/close\n?semester=2026-FALL
+activate RC
+  RC -> RC: RoleGuard.requireRegistrar()
+  RC -> RS: closeRegistration(semester)
+  activate RS
+
+  note over RS,DB3: 步骤1: 校验注册状态
+  RS -> RS: 检查当前阶段不为closed
+
+  note over RS,DB3: 步骤2: 检查教授指派+最小人数
+  RS -> ROR: findBySemesterAndStatus(OPEN)
+  ROR -> DB3: SELECT * FROM course_offering\nWHERE semester=? AND status='OPEN'
+  DB3 --> ROR: List<CourseOffering>
+  ROR --> RS: List<CourseOffering>
+
+  loop 每个OPEN状态的开设
+    RS -> RER: findByOfferingIdAndStatus(ENROLLED)
+    RER -> DB3: SELECT * FROM enrollment
+    DB3 --> RER: List<Enrollment>
+    RER --> RS: List<Enrollment>
+    RS -> RS: 统计 enrolledCount
+
+    alt 无教授指派
+      RS -> ROR: status = CANCELLED
+      ROR -> DB3: UPDATE course_offering
+      RS -> RS: cancelAllEnrollments()
+      RS -> RS: removeFromAllSchedules()
+      RS -> RNS: notifyCourseCancelled(offeringId)
+    else 有教授且人数>=3
+      RS -> ROR: status = COMMITTED
+      ROR -> DB3: UPDATE course_offering
+      RS -> RS: 加入billableEnrollments列表
+    else 人数不足
+      RS -> RS: 标记为待定, 等待leveling
+    end
+  end
+
+  note over RS,DB3: 步骤3: Leveling课表均衡
+  RS -> RSR: findBySemesterAndState(DRAFT)
+  RSR -> DB3: SELECT * FROM schedule\nWHERE state='DRAFT'
+  DB3 --> RSR: List<Schedule>
+  RSR --> RS: List<Schedule>
+
+  loop 每份DRAFT状态的课表
+    RS -> RIR: findByScheduleId()
+    RIR -> DB3: SELECT * FROM schedule_item
+    DB3 --> RIR: List<ScheduleItem>
+    RIR --> RS: List<ScheduleItem>
+    RS -> RS: 统计 primaryEnrolled
+
+    alt primaryEnrolled < 4
+      loop 按顺序遍历备选列表
+        RS -> ROR: findById(alt.offeringId)
+        ROR --> RS: CourseOffering
+        RS -> RER: countByOfferingIdAndStatus()
+        RER -> DB3: SELECT COUNT(*)
+        DB3 --> RER: count
+        RER --> RS: count
+
+        alt 开设仍OPEN且有容量且未重复
+          RS -> RIR: alt.kind = PRIMARY\nalt.status = ENROLLED_IN
+          RIR -> DB3: UPDATE schedule_item
+          RS -> RER: save(new Enrollment)
+          RER -> DB3: INSERT INTO enrollment
+          RS -> RNS: notifyEnrollmentSuccess()
+        end
+      end
+    end
+  end
+
+  note over RS,DB3: 步骤4: 二次检查
+  RS -> ROR: findBySemesterAndStatus(OPEN)
+  ROR -> DB3: SELECT
+  DB3 --> ROR: List<CourseOffering>
+  ROR --> RS: List<CourseOffering>
+
+  loop 每个仍OPEN的开设
+    RS -> RER: countByOfferingIdAndStatus()
+    RER -> DB3: SELECT COUNT(*)
+    DB3 --> RER: count
+    RER --> RS: count
+
+    alt 仍不足最小人数
+      RS -> ROR: status = CANCELLED
+      ROR -> DB3: UPDATE course_offering
+      RS -> RS: cancelAllEnrollments()
+      RS -> RS: removeFromAllSchedules()
+      RS -> RNS: notifyCourseCancelled()
+    else leveling后满足条件
+      RS -> ROR: status = COMMITTED
+      ROR -> DB3: UPDATE course_offering
+    end
+  end
+
+  note over RS,DB3: 步骤5: 通知Billing系统
+  RS -> RS: notifyBillingSystem(billableEnrollments)
+
+  note over RS,DB3: 步骤6: 通知所有学生
+  loop 每个有选课记录的学生(去重)
+    RS -> RNS: notifyRegistrationClosed(studentId, semester)
+  end
+
+  RS --> RC: CloseRegistrationResult
+  deactivate RS
+  RC --> Reg: 200 OK + 统计结果\n(已提交X门, 已取消Y门)
+deactivate RC
+
+' ==================================================
+' 图4: 登录认证
+' ==================================================
+== 登录认证流程 ==
+
+actor 用户 as User
+participant "AuthController" as AC
+participant "AuthService" as AS2
+participant "Authentication\nManager" as AM
+participant "JwtTokenProvider" as JWT
+participant "UserRepository" as UR
+participant "AuditService" as AS3
+database "数据库" as DB4
+
+User -> AC: POST /api/auth/login\n{username, password}
+activate AC
+  AC -> AS2: login(LoginRequest)
+  activate AS2
+
+  AS2 -> AS2: 检查账户锁定状态\n(lockedUntil Map)
+
+  alt 账户已锁定
+    AS2 --> AC: LockedException
+    AC --> User: 401 "账户已锁定"
+  end
+
+  AS2 -> AM: authenticate(UsernamePasswordAuthenticationToken)
+  activate AM
+    AM -> UR: findByUsername(username)
+    UR -> DB4: SELECT * FROM app_user\nWHERE username=?
+    DB4 --> UR: User记录
+    UR --> AM: User
+    AM -> AM: BCrypt密码比对
+  deactivate AM
+
+  alt 密码错误
+    AM --> AS2: BadCredentialsException
+    AS2 -> AS3: recordLoginFailed(username)
+    AS2 -> AS2: loginAttempts +1
+
+    alt 连续失败 >= 5次
+      AS2 -> AS2: 锁定账户15分钟
+      AS2 --> AC: LockedException
+    else 未达上限
+      AS2 --> AC: BadCredentialsException
+    end
+    AC --> User: 401 "用户名或密码错误"
+  else 密码正确
+    AM --> AS2: Authentication成功
+    AS2 -> AS2: 清除失败计数
+    AS2 -> UR: findById(userId)
+    UR -> DB4: SELECT * FROM app_user\nWHERE id=?
+    DB4 --> UR: User实体
+    UR --> AS2: User
+    AS2 -> JWT: generate(userId, username, role)
+    JWT --> AS2: JWT Token
+    AS2 -> AS3: recordLoginSuccess(userId, username)
+    AS2 --> AC: LoginResponse(token, userInfo)
+    deactivate AS2
+    AC --> User: 200 + JWT Token
+  deactivate AC
+
+  note over User: Pinia存储token + 用户信息\nlocalStorage持久化
+
+@enduml

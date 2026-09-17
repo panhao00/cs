@@ -1,0 +1,242 @@
+@startuml Wylie College 课程注册系统 - 类图
+' ========================================
+' Wylie College 课程注册系统 (CRS)
+' 类图 - Class Diagram (领域模型)
+' ========================================
+
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #FEFECE
+  BorderColor #A80036
+  ArrowColor #A80036
+  FontSize 12
+}
+skinparam enum {
+  BackgroundColor #E8F5E9
+  BorderColor #4CAF50
+  FontSize 12
+}
+skinparam note {
+  BackgroundColor #FFF9C4
+  BorderColor #F9A825
+}
+
+title Wylie College 课程注册系统 - 领域模型类图
+
+' ========== 枚举 ==========
+enum Role {
+  STUDENT
+  PROFESSOR
+  REGISTRAR
+}
+
+enum OfferingStatus {
+  OPEN
+  COMMITTED
+  CLOSED
+  CANCELLED
+}
+
+enum EnrollmentStatus {
+  ENROLLED
+  CANCELLED
+}
+
+enum ScheduleState {
+  DRAFT
+  COMMITTED
+  CLOSED
+}
+
+enum ItemKind {
+  PRIMARY
+  ALTERNATE
+}
+
+enum ItemStatus {
+  SELECTED
+  ENROLLED_IN
+  CANCELLED
+}
+
+enum BillStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum NotificationType {
+  OFFERING_CANCELLED
+  ENROLLMENT_SUCCESS
+  ENROLLMENT_FAILED
+  REGISTRATION_CLOSED
+  GRADE_POSTED
+  SYSTEM
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+' ========== 实体类 ==========
+class User {
+  - id : Long <<PK>>
+  - username : String <<UK>>
+  - passwordHash : String
+  - role : Role
+  - name : String
+  - dob : LocalDate
+  - ssn : String
+  - status : UserStatus
+  - graduationDate : LocalDate
+  - department : String
+  - createdAt : LocalDateTime
+  - updatedAt : LocalDateTime
+}
+
+class Course {
+  - courseId : String <<PK>>
+  - title : String
+  - department : String
+  - credits : Integer
+  - prerequisiteId : String <<FK>>
+}
+
+class CourseOffering {
+  - id : Long <<PK>>
+  - courseId : String <<FK>>
+  - semester : String
+  - professorId : Long <<FK>>
+  - days : String
+  - times : String
+  - room : String
+  - maxCapacity : Integer
+  - status : OfferingStatus
+  - version : Long
+  - createdAt : LocalDateTime
+  - updatedAt : LocalDateTime
+}
+
+class Schedule {
+  - id : Long <<PK>>
+  - studentId : Long <<FK>>
+  - semester : String
+  - state : ScheduleState
+  - createdAt : LocalDateTime
+  - updatedAt : LocalDateTime
+}
+
+class ScheduleItem {
+  - id : Long <<PK>>
+  - scheduleId : Long <<FK>>
+  - offeringId : Long <<FK>>
+  - kind : ItemKind
+  - status : ItemStatus
+}
+
+class Enrollment {
+  - id : Long <<PK>>
+  - offeringId : Long <<FK>>
+  - studentId : Long <<FK>>
+  - status : EnrollmentStatus
+  - enrolledAt : LocalDateTime
+}
+
+class Grade {
+  - id : Long <<PK>>
+  - offeringId : Long <<FK>>
+  - studentId : Long <<FK>>
+  - grade : String
+  - updatedAt : LocalDateTime
+}
+
+class Bill {
+  - id : Long <<PK>>
+  - studentId : Long <<FK>>
+  - semester : String
+  - amount : BigDecimal
+  - status : BillStatus
+  - sentAt : LocalDateTime
+  - createdAt : LocalDateTime
+}
+
+class AuditLog {
+  - id : Long <<PK>>
+  - actorId : Long
+  - action : String
+  - targetType : String
+  - targetId : Long
+  - details : String
+  - createdAt : LocalDateTime
+}
+
+class Notification {
+  - id : Long <<PK>>
+  - studentId : Long <<FK>>
+  - type : NotificationType
+  - title : String
+  - content : String
+  - offeringId : Long
+  - courseId : String
+  - isRead : boolean
+  - createdAt : LocalDateTime
+}
+
+class SystemSetting {
+  - id : Long <<PK>>
+  - settingKey : String <<UK>>
+  - settingValue : String
+  - createdAt : LocalDateTime
+  - updatedAt : LocalDateTime
+}
+
+' ========== 关系 ==========
+User "1" --> "*" Schedule : 拥有课表\nstudentId
+User "1" --> "*" Enrollment : 选课记录\nstudentId
+User "1" --> "*" Grade : 成绩\nstudentId
+User "1" --> "*" Bill : 账单\nstudentId
+User "1" --> "*" Notification : 通知\nstudentId
+User "1" --> "*" CourseOffering : 授课\nprofessorId
+User "1" --> "*" AuditLog : 审计操作\nactorId
+
+Course "1" --> "*" CourseOffering : 课程开设\ncourseId
+Course "1" --> "0..1" Course : 先修课\nprerequisiteId
+
+Schedule "1" --> "*" ScheduleItem : 包含\nscheduleId
+CourseOffering "1" --> "*" ScheduleItem : 引用\nofferingId
+CourseOffering "1" --> "*" Enrollment : 选课名单\nofferingId
+CourseOffering "1" --> "*" Grade : 班级成绩\nofferingId
+
+' ========== 枚举绑定 ==========
+User --> Role
+User --> UserStatus
+CourseOffering --> OfferingStatus
+Enrollment --> EnrollmentStatus
+Schedule --> ScheduleState
+ScheduleItem --> ItemKind
+ScheduleItem --> ItemStatus
+Bill --> BillStatus
+Notification --> NotificationType
+
+' ========== 注释 ==========
+note bottom of User
+  单表策略存储三类角色
+  STUDENT / PROFESSOR / REGISTRAR
+  字段重叠度高,简化查询
+end note
+
+note right of CourseOffering
+  业务规则:
+  - 最多10人, 最少3人
+  - 不足则取消
+  - 乐观锁防止超卖
+end note
+
+note left of Enrollment
+  唯一约束:
+  UNIQUE(offering_id, student_id)
+  确保不重复注册
+end note
+
+@enduml

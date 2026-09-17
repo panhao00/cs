@@ -1,0 +1,178 @@
+@startuml Wylie College 课程注册系统 - 组件图
+' ========================================
+' Wylie College 课程注册系统 (CRS)
+' 组件图/部署图 - Component/Deployment Diagram
+' ========================================
+
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor #A80036
+  FontSize 12
+}
+skinparam node {
+  BackgroundColor #E8F5E9
+  BorderColor #4CAF50
+  FontSize 13
+}
+skinparam database {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 12
+}
+skinparam cloud {
+  BackgroundColor #F3E5F5
+  BorderColor #7B1FA2
+}
+skinparam package {
+  BackgroundColor #FFF3E0
+  BorderColor #E65100
+}
+skinparam artifact {
+  BackgroundColor #FEFECE
+  BorderColor #A80036
+}
+skinparam note {
+  BackgroundColor #FFF9C4
+  BorderColor #F9A825
+}
+
+title Wylie College 课程注册系统 - 组件图/部署图
+
+' ========== 客户端层 ==========
+node "客户端" as Client {
+  artifact "Web浏览器\n(Chrome/Firefox/Edge)" as Browser
+}
+
+' ========== 前端层 ==========
+node "前端服务器" as FrontendNode {
+  package "Vue 3 前端应用" as VueApp {
+    artifact "Vite 5.x\n构建工具" as Vite
+    artifact "Vue Router 4.x\n路由守卫" as Router
+    artifact "Pinia 2.x\n状态管理" as Pinia
+    artifact "Axios 1.x\nHTTP客户端" as Axios
+    artifact "Element Plus 2.x\nUI组件库" as ElementUI
+    artifact "Vue 3.x\n组合式API" as Vue3
+  }
+}
+
+' ========== 后端层 ==========
+node "后端服务器 (Spring Boot 3.3)" as BackendNode {
+
+  package "安全模块" as SecurityPkg {
+    artifact "Spring Security 6.x\n角色授权" as SpringSec
+    artifact "JwtTokenProvider\nJWT生成/校验" as JWT
+    artifact "JwtAuthenticationFilter\n请求拦截" as JWTFilter
+    artifact "BCrypt\n密码哈希" as BCrypt
+  }
+
+  package "控制器层 (10个Controller)" as CtrlPkg {
+    artifact "AuthController\n登录认证" as AuthCtrl
+    artifact "ScheduleController\n课表管理" as SchedCtrl
+    artifact "TeachingController\n教授选课" as TeachCtrl
+    artifact "GradeController\n成绩录入" as GradeCtrl
+    artifact "UserController\n用户管理" as UserCtrl
+    artifact "RegistrationController\n关闭注册" as RegCtrl
+    artifact "ReportCardController\n成绩单" as ReportCtrl
+    artifact "CatalogController\n课程目录" as CatCtrl
+    artifact "NotificationController\n通知" as NotiCtrl
+    artifact "HealthController\n健康检查" as HealthCtrl
+  }
+
+  package "服务层 (10个Service)" as SvcPkg {
+    artifact "AuthService\n登录认证" as AuthSvc
+    artifact "ScheduleService\n选课逻辑" as SchedSvc
+    artifact "TeachingService\n授课逻辑" as TeachSvc
+    artifact "GradeService\n成绩逻辑" as GradeSvc
+    artifact "UserService\n用户CRUD" as UserSvc
+    artifact "RegistrationService\n关闭注册" as RegSvc
+    artifact "ReportCardService\n成绩单查询" as ReportSvc
+    artifact "CatalogService\n课程目录" as CatSvc
+    artifact "NotificationService\n通知管理" as NotiSvc
+    artifact "AuditService\n审计日志" as AuditSvc
+  }
+
+  package "数据访问层" as DAPkg {
+    artifact "Spring Data JPA\nHibernate实现" as JPA
+    artifact "RegistrationPhase\n注册阶段状态机" as RegPhase
+    artifact "TimeConflictUtil\n时间冲突检测" as TimeUtil
+  }
+}
+
+' ========== 数据库层 ==========
+database "H2 内存库\n(开发环境)\njdbc:h2:mem:crs" as H2
+database "MySQL 8.x\n(生产环境)" as MySQL
+
+' ========== 外部系统 ==========
+cloud "外部系统" as ExternalPkg {
+  artifact "Billing System\n账单系统\n(模拟调用)" as Billing
+}
+
+' ========== 连接关系 ==========
+Browser --> Vue3 : HTTP/HTTPS\nREST API
+
+Vite --> Vue3 : 构建打包
+Vue3 --> Router : 路由管理
+Vue3 --> Pinia : 状态管理
+Vue3 --> Axios : HTTP请求
+Vue3 --> ElementUI : UI组件
+
+Axios -->|REST API + JWT\nAuthorization: Bearer| AuthCtrl
+
+AuthCtrl --> AuthSvc : 调用
+SchedCtrl --> SchedSvc : 调用
+TeachCtrl --> TeachSvc : 调用
+GradeCtrl --> GradeSvc : 调用
+UserCtrl --> UserSvc : 调用
+RegCtrl --> RegSvc : 调用
+ReportCtrl --> ReportSvc : 调用
+CatCtrl --> CatSvc : 调用
+NotiCtrl --> NotiSvc : 调用
+
+AuthSvc --> SpringSec : 认证
+AuthSvc --> JWT : 生成令牌
+AuthSvc --> BCrypt : 密码比对
+AuthSvc --> AuditSvc : 记录登录
+
+SchedSvc --> JPA : 数据访问
+TeachSvc --> JPA : 数据访问
+GradeSvc --> JPA : 数据访问
+UserSvc --> JPA : 数据访问
+RegSvc --> JPA : 数据访问
+ReportSvc --> JPA : 数据访问
+CatSvc --> JPA : 数据访问
+NotiSvc --> JPA : 数据访问
+
+SchedSvc --> NotiSvc : 选课通知
+SchedSvc --> AuditSvc : 审计日志
+TeachSvc --> AuditSvc : 审计日志
+GradeSvc --> NotiSvc : 成绩通知
+GradeSvc --> AuditSvc : 审计日志
+UserSvc --> AuditSvc : 审计日志
+RegSvc --> NotiSvc : 关闭通知
+ReportSvc --> AuditSvc : 查看记录
+
+RegSvc --> RegPhase : 阶段校验
+SchedSvc --> TimeUtil : 冲突检测
+TeachSvc --> TimeUtil : 冲突检测
+
+SchedSvc -.->|HTTP模拟调用| Billing
+
+' ========== 部署视图 ==========
+note as N1
+  **部署架构说明**
+  ==
+  **开发环境:**
+  浏览器(localhost:5173)
+    -> Vite Dev Server (proxy)
+    -> Spring Boot (localhost:8080)
+    -> H2 内存库 (jdbc:h2:mem:crs)
+
+  **生产环境:**
+  浏览器/客户端
+    -> Nginx (反向代理 + 静态资源)
+    -> Spring Boot (应用服务器)
+    -> MySQL 8.x (主库)
+    -> Billing System (HTTP API)
+end note
+
+@enduml

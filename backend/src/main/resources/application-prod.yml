@@ -1,0 +1,25 @@
+# 生产环境: MySQL 8.x
+# 需通过环境变量提供连接信息:
+#   DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/crs?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      continue-on-error: true  # MySQL不支持 CREATE INDEX IF NOT EXISTS, 重启时忽略索引错误
+
+crs:
+  security:
+    jwt-secret: ${JWT_SECRET}
+
+logging:
+  level:
+    com.crs: INFO
+    org.hibernate.SQL: INFO
