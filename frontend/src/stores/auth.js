@@ -50,6 +50,22 @@ export const useAuthStore = defineStore('auth', () => {
     return res.data
   }
 
+  async function register({ role, username, password, name, department }) {
+    const res = await api.post('/auth/register', {
+      role, username, password, name, department
+    })
+    token.value = res.data.token
+    user.value = {
+      userId: res.data.userId,
+      username: res.data.username,
+      name: res.data.name,
+      role: res.data.role
+    }
+    localStorage.setItem('crs_token', token.value)
+    localStorage.setItem('crs_user', JSON.stringify(user.value))
+    return res.data
+  }
+
   function logout() {
     token.value = ''
     user.value = null
@@ -57,5 +73,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('crs_user')
   }
 
-  return { token, user, isLoggedIn, role, login, logout }
+  return { token, user, isLoggedIn, role, login, register, logout }
 })

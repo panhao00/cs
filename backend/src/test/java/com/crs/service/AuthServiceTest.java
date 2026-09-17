@@ -1,5 +1,6 @@
 package com.crs.service;
 
+import com.crs.common.ApiException;
 import com.crs.domain.Role;
 import com.crs.domain.User;
 import com.crs.repository.UserRepository;
@@ -7,6 +8,7 @@ import com.crs.security.CrsUserDetails;
 import com.crs.security.JwtTokenProvider;
 import com.crs.web.dto.LoginRequest;
 import com.crs.web.dto.LoginResponse;
+import com.crs.web.dto.RegisterRequest;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -46,6 +49,9 @@ class AuthServiceTest {
 
     @Mock
     private AuditService auditService;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
 
     @InjectMocks
     private AuthService authService;
@@ -238,5 +244,109 @@ class AuthServiceTest {
         // Assert
         verify(auditService).recordLoginFailed(eq("student"), contains("密码错误"));
         verify(auditService, never()).recordLoginSuccess(anyLong(), anyString());
+    }
+
+    // ==================== register ====================
+
+    @Test
+    @DisplayName("注册成功 - 学生注册返回 JWT")
+    void register_student_returnsLoginResponse() {
+        // Arrange
+        RegisterRequest req = new RegisterRequest();
+        req.setUsername("newstudent");
+        req.setPassword("pass123");
+        req.setName("New Student");
+        req.setRole(Role.STUDENT);
+
+        when(userRepository.findByUsername("newstudent")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("pass123")).thenReturn("$2a$hashed");
+        when(tokenProvider.generate(anyLong(), eq("newstudent"), eq(Role.STUDENT))).thenReturn(MOCK_TOKEN);
+        when(tokenProvider.getExpirationMs()).thenReturn(EXPIRATION_MS);
+
+        // Capture the saved User
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User u = invocation.getArgument(0);
+            u.setId(10L);
+            return u;
+        });
+
+        // Act
+        LoginResponse result = authService.register(req);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(MOCK_TOKEN, result.getToken());
+        assertEquals("newstudent", result.getUsername());
+        assertEquals(Role.STUDENT, result.getRole());
+        verify(userRepository).save(any(User.class));
+        verify(passwordEncoder).encode("pass123");
+    }
+
+    @Test
+    @DisplayName("注册成功 - 教授注册需要院系")
+    void register_professor_withDepartment_success() {
+        RegisterRequest req = new RegisterRequest();
+        req.setUsername("newprof");
+        req.setPassword("pass123");
+        req.setName("New Prof");
+        req.setRole(Role.PROFESSOR);
+        req.setDepartment("Math");
+
+        when(userRepository.findByUsername("newprof")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("pass123")).thenReturn("$2a$hashed");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            u.setId(11L);
+            return u;
+        });
+        when(tokenProvider.generate(anyLong(), eq("newprof"), eq(Role.PROFESSOR))).thenReturn(MOCK_TOKEN);
+        when(tokenProvider.getExpirationMs()).thenReturn(EXPIRATION_MS);
+
+        LoginResponse result = authService.register(req);
+        assertNotNull(result);
+        assertEquals(Role.PROFESSOR, result.getRole());
+    }
+
+    @Test
+    @DisplayName("注册失败 - 用户名已存在")
+    void register_duplicateUsername_throwsConflict() {
+        RegisterRequest req = new RegisterRequest();
+        req.setUsername("student");
+        req.setPassword("pass123");
+        req.setName("Dup");
+        req.setRole(Role.STUDENT);
+
+        when(userRepository.findByUsername("student")).thenReturn(Optional.of(sampleUser));
+
+        assertThrows(ApiException.class, () -> authService.register(req));
+    }
+
+    @Test
+    @DisplayName("注册失败 - 教授未提供院系")
+    void register_professor_noDepartment_throwsBadRequest() {
+        RegisterRequest req = new RegisterRequest();
+        req.setUsername("newprof");
+        req.setPassword("pass123");
+        req.setName("New Prof");
+        req.setRole(Role.PROFESSOR);
+        req.setDepartment(null);
+
+        when(userRepository.findByUsername("newprof")).thenReturn(Optional.empty());
+
+        assertThrows(ApiException.class, () -> authService.register(req));
+    }
+
+    @Test
+    @DisplayName("注册失败 - 不允许注册 REGISTRAR 角色")
+    void register_registrarRole_throwsBadRequest() {
+        RegisterRequest req = new RegisterRequest();
+        req.setUsername("newadmin");
+        req.setPassword("pass123");
+        req.setName("Admin");
+        req.setRole(Role.REGISTRAR);
+
+        when(userRepository.findByUsername("newadmin")).thenReturn(Optional.empty());
+
+        assertThrows(ApiException.class, () -> authService.register(req));
     }
 }

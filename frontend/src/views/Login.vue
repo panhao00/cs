@@ -69,6 +69,10 @@
           Student
         </el-tag>
       </div>
+
+      <div class="register-link">
+        还没有账号? <router-link to="/signup">立即注册</router-link>
+      </div>
     </el-card>
   </div>
 </template>
@@ -157,5 +161,17 @@ async function handleLogin() {
 
 .account-tag {
   cursor: pointer;
+}
+
+.register-link {
+  text-align: center;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #909399;
+}
+
+.register-link a {
+  color: #409eff;
+  text-decoration: none;
 }
 </style>

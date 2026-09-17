@@ -1,11 +1,13 @@
 package com.crs.service;
 
+import com.crs.common.ApiException;
 import com.crs.domain.Role;
 import com.crs.domain.User;
 import com.crs.repository.UserRepository;
 import com.crs.security.JwtTokenProvider;
 import com.crs.web.dto.LoginRequest;
 import com.crs.web.dto.LoginResponse;
+import com.crs.web.dto.RegisterRequest;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +38,7 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider;
     private final UserRepository userRepository;
     private final AuditService auditService;
+    private final PasswordEncoder passwordEncoder;
 
     /** 登录失败追踪: username -> 连续失败次数 */
     private final ConcurrentHashMap<String, AtomicInteger> loginAttempts = new ConcurrentHashMap<>();
@@ -115,6 +119,58 @@ public class AuthService {
                 user.getUsername(),
                 user.getName(),
                 role,
+                expiresAt);
+    }
+
+    /**
+     * 自助注册。
+     * <p>
+     * 学生/教授可自行注册账号。
+     * 校验: 用户名唯一、密码长度 >= 6、角色合法性。
+     * <p>
+     * 参考 AI 生成,经人工核验。
+     */
+    @Transactional
+    public LoginResponse register(RegisterRequest request) {
+        // 校验用户名唯一
+        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
+            throw ApiException.conflict("用户名已存在: " + request.getUsername());
+        }
+
+        // 校验角色: 只允许 STUDENT 和 PROFESSOR 自助注册
+        if (request.getRole() != Role.STUDENT && request.getRole() != Role.PROFESSOR) {
+            throw ApiException.badRequest("不支持注册该角色");
+        }
+
+        // 教授必须提供院系
+        if (request.getRole() == Role.PROFESSOR
+                && (request.getDepartment() == null || request.getDepartment().isBlank())) {
+            throw ApiException.badRequest("教授角色必须填写所属院系");
+        }
+
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        user.setRole(request.getRole());
+        user.setName(request.getName());
+        user.setDepartment(request.getDepartment());
+        user.setStatus(User.UserStatus.ACTIVE);
+        userRepository.save(user);
+
+        log.info("新用户注册: username={}, role={}", user.getUsername(), user.getRole());
+        auditService.recordLoginSuccess(user.getId(), user.getUsername());
+
+        // 注册成功后直接返回 JWT(自动登录)
+        String token = tokenProvider.generate(user.getId(), user.getUsername(), user.getRole());
+        long expiresAt = System.currentTimeMillis() + tokenProvider.getExpirationMs();
+
+        return new LoginResponse(
+                token,
+                "Bearer",
+                user.getId(),
+                user.getUsername(),
+                user.getName(),
+                user.getRole(),
                 expiresAt);
     }
 }
