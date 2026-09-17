@@ -66,7 +66,7 @@ E:\cs\
 │   │   ├── application-dev.yml           # H2 开发环境
 │   │   ├── application-prod.yml          # MySQL 生产环境
 │   │   └── schema.sql                    # 数据库 DDL
-│   └── src/test/java/com/crs/            # 单元测试(80+ 用例)
+│   └── src/test/java/com/crs/            # 单元测试(86 用例)
 │       └── service/
 │           ├── ScheduleServiceTest.java
 │           ├── GradeServiceTest.java
@@ -113,7 +113,13 @@ E:\cs\
 │   ├── 设计文档.md                        # 系统设计(ER 图/类图/时序图)
 │   ├── 开发计划.md                        # 迭代计划与风险管理
 │   ├── 测试计划.md                        # 测试策略与用例
-│   └── 测试报告.md                        # 测试执行结果
+│   ├── 测试报告.md                        # 测试执行结果
+│   └── diagrams/                         # PlantUML 架构图
+│       ├── use-case-diagram.puml         # 用例图
+│       ├── class-diagram.puml            # 类图
+│       ├── er-diagram.puml               # ER 图
+│       ├── component-diagram.puml        # 组件图
+│       └── sequence-diagrams.puml        # 时序图
 ├── tools/                                # 本地 Maven(不入版本库)
 └── 课程注册系统_开发指南.md               # 需求规格说明
 ```
@@ -125,13 +131,13 @@ E:\cs\
 **前置条件:** JDK 21+ (已安装)
 
 ```powershell
-cd f:\cs\backend
+cd E:\cs\backend
 
 # 方式一: 使用 Maven Wrapper(首次运行自动下载 Maven)
 .\mvnw.cmd spring-boot:run
 
 # 方式二: 使用本地 Maven
-$env:Path = "f:\cs\tools\apache-maven-3.9.9\bin;$env:Path"
+$env:Path = "E:\cs\tools\apache-maven-3.9.9\bin;$env:Path"
 mvn spring-boot:run
 ```
 
@@ -145,7 +151,7 @@ mvn spring-boot:run
 **前置条件:** Node.js 18+ (需安装)
 
 ```powershell
-cd f:\cs\frontend
+cd E:\cs\frontend
 npm install
 npm run dev
 ```
@@ -156,10 +162,17 @@ npm run dev
 
 ### 生产环境(MySQL)
 
+**前置条件:** MySQL 8.x (需单独安装并启动)
+
 ```powershell
+# 启动 MySQL (生产环境必需,MySQL 以独立进程运行)
+Start-Process "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqld.exe" -ArgumentList "--basedir=`"C:\Program Files\MySQL\MySQL Server 8.4`"", "--datadir=`"C:\ProgramData\MySQL\MySQL Server 8.4\Data`"", "--port=3306"
+
+# 启动后端(prod profile)
+cd E:\cs\backend
 $env:DB_URL = "jdbc:mysql://localhost:3306/crs?useSSL=false&serverTimezone=Asia/Shanghai"
 $env:DB_USERNAME = "root"
-$env:DB_PASSWORD = "your_password"
+$env:DB_PASSWORD = "crs123456"
 $env:JWT_SECRET = "your-strong-secret-key"
 .\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=prod
 ```
@@ -309,7 +322,7 @@ Authorization: Bearer eyJhbGci...
 - ✅ Vue 3 前端 (9 个视图 + 1 个共用组件 + 路由守卫 + JWT 拦截器 + Element Plus)
 - ✅ 前端路由守卫 (认证检查 + 角色 RBAC: STUDENT/PROFESSOR/REGISTRAR)
 - ✅ 通知系统 (Notification 实体 + Service + Controller + 前端通知中心)
-- ✅ 后端单元测试 (80+ 用例,覆盖 Schedule/Grade/Teaching/User/Auth/Registration)
+- ✅ 后端单元测试 (86 用例,覆盖 Schedule/Grade/Teaching/User/Auth/Registration)
 - ✅ 前端单元测试 (46 用例,覆盖 Auth Store/API 拦截器/路由守卫)
 
 ## 已知限制
@@ -317,6 +330,20 @@ Authorization: Bearer eyJhbGci...
 1. **前端需安装 Node.js** — 运行 `npm install` + `npm run dev` 即可启动。可使用 `login-test.html` 免安装测试。
 2. **课程目录为模拟实现** — 使用本地 H2/MySQL 表模拟遗留 Ingres Catalog,后续需实现 Adapter + 缓存层(需求第 9.2 节)。
 3. **无 HTTPS** — 生产环境需配置 TLS。
+
+## UML 架构图
+
+`docs/diagrams/` 目录包含 5 个 PlantUML 源文件，可使用 PlantUML 插件或在线渲染器生成图片：
+
+| 文件 | 内容 |
+|---|---|
+| `use-case-diagram.puml` | 系统用例图 (7.x 全部用例) |
+| `class-diagram.puml` | 领域模型类图 (10 实体 + 8 枚举) |
+| `er-diagram.puml` | 数据库 ER 图 |
+| `component-diagram.puml` | 系统组件架构图 |
+| `sequence-diagrams.puml` | 核心业务时序图 (选课/成绩/关闭注册) |
+
+渲染方式：安装 VS Code PlantUML 插件后在 `.puml` 文件中按 `Alt+D` 预览，或访问 [PlantUML Online Server](https://www.plantuml.com/plantuml/uml/)。
 
 ## AI 使用说明(符合第 11 节规范)
 
