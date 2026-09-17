@@ -1,54 +1,104 @@
 <template>
   <div class="user-mgmt">
-    <AppLayout title="用户维护(Maintain Student / Professor)">
+    <AppLayout title="用户维护 (Maintain Student / Professor)">
       <template #actions>
-        <el-tag type="primary">注册主任</el-tag>
+        <el-tag type="primary" effect="dark" size="small">
+          <el-icon><User /></el-icon>
+          注册主任
+        </el-tag>
       </template>
-        <!-- 过滤与操作栏 -->
-        <el-card class="filter-card">
-          <el-row :gutter="16">
-            <el-col :span="8">
-              <el-select v-model="roleFilter" placeholder="按角色筛选" clearable>
-                <el-option label="全部" :value="null" />
-                <el-option label="学生 STUDENT" value="STUDENT" />
-                <el-option label="教授 PROFESSOR" value="PROFESSOR" />
-                <el-option label="注册主任 REGISTRAR" value="REGISTRAR" />
-              </el-select>
-            </el-col>
-            <el-col :span="8">
-              <el-input v-model="search" placeholder="搜索用户名/姓名" clearable />
-            </el-col>
-            <el-col :span="8" style="text-align: right">
-              <el-button type="primary" @click="openCreate">+ 新建用户</el-button>
-              <el-button @click="loadUsers">刷新</el-button>
-            </el-col>
-          </el-row>
-        </el-card>
 
-        <!-- 用户列表 -->
-        <el-card style="margin-top: 16px">
-          <el-table :data="filteredUsers" v-loading="loading" border>
-            <el-table-column prop="id" label="ID" width="60" />
-            <el-table-column prop="username" label="用户名" width="120" />
-            <el-table-column label="角色" width="120">
-              <template #default="{ row }">
-                <el-tag :type="roleTagType(row.role)">{{ roleLabel(row.role) }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="name" label="姓名" width="120" />
-            <el-table-column prop="department" label="院系" width="120" />
-            <el-table-column prop="graduationDate" label="毕业日期" width="120" />
-            <el-table-column prop="dob" label="出生日期" width="120" />
-            <el-table-column label="状态" width="100">
-              <template #default="{ row }">
-                <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">
-                  {{ row.status }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="280">
-              <template #default="{ row }">
-                <el-button size="small" @click="openEdit(row)">编辑</el-button>
+      <!-- Filter & Actions Bar -->
+      <el-card class="filter-card">
+        <div class="filter-row">
+          <el-select v-model="roleFilter" placeholder="按角色筛选" clearable class="filter-role">
+            <el-option label="全部" :value="null" />
+            <el-option label="学生 STUDENT" value="STUDENT" />
+            <el-option label="教授 PROFESSOR" value="PROFESSOR" />
+            <el-option label="注册主任 REGISTRAR" value="REGISTRAR" />
+          </el-select>
+          <el-input
+            v-model="search"
+            placeholder="搜索用户名/姓名"
+            clearable
+            class="filter-search"
+            :prefix-icon="Search"
+          />
+          <div class="filter-actions">
+            <el-button type="primary" @click="openCreate">
+              <el-icon><Plus /></el-icon>
+              新建用户
+            </el-button>
+            <el-button @click="loadUsers">
+              <el-icon><Refresh /></el-icon>
+              刷新
+            </el-button>
+          </div>
+        </div>
+      </el-card>
+
+      <!-- User Table -->
+      <el-card class="table-card">
+        <el-skeleton v-if="loading" :rows="8" animated />
+
+        <el-empty v-else-if="filteredUsers.length === 0" description="暂无用户数据">
+          <template #image>
+            <div class="empty-icon">
+              <el-icon :size="48"><User /></el-icon>
+            </div>
+          </template>
+        </el-empty>
+
+        <el-table v-else :data="filteredUsers" stripe class="refined-table">
+          <el-table-column prop="id" label="ID" width="60" />
+          <el-table-column prop="username" label="用户名" width="120">
+            <template #default="{ row }">
+              <span class="username-cell">{{ row.username }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="角色" width="120">
+            <template #default="{ row }">
+              <el-tag :type="roleTagType(row.role)" size="small" effect="dark">
+                {{ roleLabel(row.role) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="name" label="姓名" width="120" />
+          <el-table-column prop="department" label="院系" width="120">
+            <template #default="{ row }">
+              <span class="muted-text">{{ row.department || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="graduationDate" label="毕业日期" width="120">
+            <template #default="{ row }">
+              <span class="muted-text">{{ row.graduationDate || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="dob" label="出生日期" width="120">
+            <template #default="{ row }">
+              <span class="muted-text">{{ row.dob || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag
+                :type="row.status === 'ACTIVE' ? 'success' : 'info'"
+                size="small"
+                effect="dark"
+                class="status-tag"
+              >
+                <span class="status-dot" :class="row.status === 'ACTIVE' ? 'dot-active' : 'dot-inactive'"></span>
+                {{ row.status === 'ACTIVE' ? '活跃' : '停用' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="280" fixed="right">
+            <template #default="{ row }">
+              <div class="action-btns">
+                <el-button size="small" @click="openEdit(row)">
+                  <el-icon><Edit /></el-icon>
+                  编辑
+                </el-button>
                 <el-button
                   size="small"
                   :type="row.status === 'ACTIVE' ? 'warning' : 'success'"
@@ -64,48 +114,80 @@
                 >
                   删除
                 </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-card>
     </AppLayout>
 
-    <!-- 创建/编辑对话框 -->
+    <!-- Create/Edit Dialog -->
     <el-dialog
       v-model="dialogVisible"
       :title="isEdit ? '编辑用户' : '新建用户'"
       width="560px"
+      class="user-dialog"
     >
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-        <el-form-item label="用户名" required>
-          <el-input v-model="form.username" placeholder="登录用户名" />
-        </el-form-item>
-        <el-form-item label="密码" :required="!isEdit">
-          <el-input
-            v-model="form.password"
-            type="password"
-            :placeholder="isEdit ? '留空表示不修改' : '必填'"
-          />
-        </el-form-item>
-        <el-form-item label="角色" required>
-          <el-select v-model="form.role" placeholder="选择角色">
-            <el-option label="学生 STUDENT" value="STUDENT" />
-            <el-option label="教授 PROFESSOR" value="PROFESSOR" />
-            <el-option label="注册主任 REGISTRAR" value="REGISTRAR" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="姓名" required>
-          <el-input v-model="form.name" />
-        </el-form-item>
-        <el-form-item v-if="form.role === 'PROFESSOR'" label="院系" required>
-          <el-input v-model="form.department" placeholder="如:计算机系" />
-        </el-form-item>
-        <el-form-item v-if="form.role === 'STUDENT'" label="毕业日期" required>
-          <el-date-picker v-model="form.graduationDate" type="date" value-format="YYYY-MM-DD" />
-        </el-form-item>
-        <el-form-item label="出生日期">
-          <el-date-picker v-model="form.dob" type="date" value-format="YYYY-MM-DD" />
-        </el-form-item>
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" label-position="top">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="用户名" prop="username">
+              <el-input v-model="form.username" placeholder="登录用户名" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="密码" :required="!isEdit" prop="password">
+              <el-input
+                v-model="form.password"
+                type="password"
+                :placeholder="isEdit ? '留空表示不修改' : '必填'"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="角色" prop="role">
+              <el-select v-model="form.role" placeholder="选择角色" style="width: 100%">
+                <el-option label="学生 STUDENT" value="STUDENT" />
+                <el-option label="教授 PROFESSOR" value="PROFESSOR" />
+                <el-option label="注册主任 REGISTRAR" value="REGISTRAR" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="姓名" prop="name">
+              <el-input v-model="form.name" placeholder="真实姓名" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12" v-if="form.role === 'PROFESSOR'">
+            <el-form-item label="院系" prop="department">
+              <el-input v-model="form.department" placeholder="如:计算机系" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12" v-if="form.role === 'STUDENT'">
+            <el-form-item label="毕业日期" prop="graduationDate">
+              <el-date-picker
+                v-model="form.graduationDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="出生日期">
+              <el-date-picker
+                v-model="form.dob"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -118,6 +200,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search, Plus, Refresh, Edit } from '@element-plus/icons-vue'
 import AppLayout from '../components/AppLayout.vue'
 import { userApi } from '../api/users'
 
@@ -178,7 +261,7 @@ function openEdit(row) {
   form.value = {
     id: row.id,
     username: row.username,
-    password: '',  // 留空表示不修改
+    password: '',
     role: row.role,
     name: row.name,
     department: row.department || '',
@@ -252,4 +335,77 @@ function roleTagType(role) {
 onMounted(loadUsers)
 </script>
 
+<style scoped>
+.filter-card {
+  margin-bottom: 16px;
+}
 
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-role {
+  width: 180px;
+}
+
+.filter-search {
+  flex: 1;
+  min-width: 200px;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.table-card {
+  overflow: visible;
+}
+
+.username-cell {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.muted-text {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.dot-active {
+  background: white;
+}
+
+.dot-inactive {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.action-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.empty-icon {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
+
+.user-dialog :deep(.el-dialog__body) {
+  padding-top: var(--space-4);
+}
+</style>

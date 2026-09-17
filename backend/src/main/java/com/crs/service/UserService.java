@@ -200,7 +200,8 @@ public class UserService {
                 user.getDepartment(),
                 user.getDob(),
                 user.getGraduationDate(),
-                user.getStatus().name()
+                user.getStatus().name(),
+                UserDTO.maskSSN(user.getSsn())
         );
     }
 }

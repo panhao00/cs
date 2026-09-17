@@ -22,6 +22,7 @@ import com.crs.web.dto.CloseRegistrationResult;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -74,6 +75,12 @@ public class RegistrationService {
 
     @Value("${crs.rules.max-primary:4}")
     private int maxPrimary;
+
+    @Value("${crs.billing.retry-count:3}")
+    private int billingRetryCount;
+
+    @Value("${crs.billing.retry-delay-ms:1000}")
+    private long billingRetryDelayMs;
 
     /** 当前学期 */
     private static final String CURRENT_SEMESTER = "2026-FALL";
@@ -442,31 +449,58 @@ public class RegistrationService {
     }
 
     /**
-     * 通知 Billing 系统(模拟实现)。
+     * 通知 Billing 系统(模拟实现 + 重试机制)。
      * <p>
      * 实际应通过 HTTP/RPC 调用 Billing 系统的接口,将成功开设的选课名单发送过去。
-     * 备选流 Billing System Down: 实际实现应捕获异常并返回 false。
+     * 备选流 Billing System Down: 按设定周期重发事务,直至 Billing System 恢复可用。
+     * <p>
+     * 模拟实现中随机 30% 概率失败,用于测试重试逻辑。
      */
     private boolean notifyBillingSystem(List<Enrollment> enrollments, String semester) {
-        try {
-            log.info("通知 Billing 系统: semester={}, 共 {} 条选课记录",
-                    semester, enrollments.size());
+        Random random = new Random();
 
-            // 按学生分组统计
-            Map<Long, Long> studentCourseCount = enrollments.stream()
-                    .collect(Collectors.groupingBy(
-                            Enrollment::getStudentId,
-                            Collectors.counting()));
+        for (int attempt = 1; attempt <= billingRetryCount; attempt++) {
+            try {
+                log.info("通知 Billing 系统: attempt={}/{}, semester={}, 共 {} 条选课记录",
+                        attempt, billingRetryCount, semester, enrollments.size());
 
-            log.info("Billing 通知: {} 名学生, 选课记录总计 {} 条",
-                    studentCourseCount.size(), enrollments.size());
+                // 按学生分组统计
+                Map<Long, Long> studentCourseCount = enrollments.stream()
+                        .collect(Collectors.groupingBy(
+                                Enrollment::getStudentId,
+                                Collectors.counting()));
 
-            // 模拟: 实际应调用 BillingClient.notify(semester, enrollments)
-            return true;
-        } catch (Exception e) {
-            log.error("通知 Billing 系统失败", e);
-            return false;
+                log.info("Billing 通知: {} 名学生, 选课记录总计 {} 条",
+                        studentCourseCount.size(), enrollments.size());
+
+                // 模拟: 30% 概率随机失败,用于测试重试逻辑
+                // 实际应调用 BillingClient.notify(semester, enrollments)
+                if (random.nextInt(100) < 30) {
+                    throw new RuntimeException("Billing System 暂时不可用 (模拟失败)");
+                }
+
+                log.info("Billing 通知成功: attempt={}", attempt);
+                return true;
+
+            } catch (Exception e) {
+                log.warn("Billing 通知失败: attempt={}/{}, 错误: {}",
+                        attempt, billingRetryCount, e.getMessage());
+
+                if (attempt < billingRetryCount) {
+                    try {
+                        log.info("等待 {}ms 后重试...", billingRetryDelayMs);
+                        Thread.sleep(billingRetryDelayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        log.error("重试等待被中断", ie);
+                        return false;
+                    }
+                }
+            }
         }
+
+        log.error("Billing 通知最终失败: 已重试 {} 次", billingRetryCount);
+        return false;
     }
 
     /** 通知所有本学期有选课记录的学生注册已关闭 */

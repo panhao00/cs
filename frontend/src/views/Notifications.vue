@@ -9,29 +9,49 @@
           @click="handleMarkAllAsRead"
           :disabled="unreadCount === 0"
         >
+          <el-icon><Finished /></el-icon>
           全部标为已读
         </el-button>
       </template>
-        <div v-if="loading" class="loading-state">
-          <el-skeleton :rows="5" animated />
+
+      <!-- Loading state -->
+      <div v-if="loading" class="loading-state">
+        <el-skeleton :rows="5" animated />
+      </div>
+
+      <!-- Empty state -->
+      <el-empty v-else-if="notifications.length === 0" description="暂无通知">
+        <template #image>
+          <div class="empty-notifications">
+            <el-icon :size="56"><Bell /></el-icon>
+          </div>
+        </template>
+      </el-empty>
+
+      <!-- Notification list -->
+      <div v-else class="notification-list">
+        <div class="notification-summary">
+          <span class="summary-text">
+            共 {{ notifications.length }} 条通知,
+            <strong>{{ unreadCount }}</strong> 条未读
+          </span>
         </div>
 
-        <el-empty v-else-if="notifications.length === 0" description="暂无通知" />
-
-        <div v-else class="notification-list">
-          <el-card
-            v-for="item in notifications"
-            :key="item.id"
-            class="notification-card"
-            :class="{ unread: !item.read }"
-            shadow="hover"
-            @click="handleReadNotification(item)"
-          >
+        <div
+          v-for="item in notifications"
+          :key="item.id"
+          class="notification-card"
+          :class="{ unread: !item.read }"
+          @click="handleReadNotification(item)"
+        >
+          <div class="notification-indicator" :class="{ 'indicator-unread': !item.read }"></div>
+          <div class="notification-body">
             <div class="notification-header">
               <el-tag
                 :type="typeTagType(item.type)"
                 size="small"
                 effect="dark"
+                class="type-tag"
               >
                 {{ typeLabel(item.type) }}
               </el-tag>
@@ -40,10 +60,14 @@
             <h4 class="notification-title">{{ item.title }}</h4>
             <p class="notification-content">{{ item.content }}</p>
             <div v-if="item.courseId" class="notification-meta">
-              <el-tag size="small" type="info">{{ item.courseId }}</el-tag>
+              <el-tag size="small" type="info" effect="plain">
+                <el-icon><Document /></el-icon>
+                {{ item.courseId }}
+              </el-tag>
             </div>
-          </el-card>
+          </div>
         </div>
+      </div>
     </AppLayout>
   </div>
 </template>
@@ -51,6 +75,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Finished, Bell, Document } from '@element-plus/icons-vue'
 import AppLayout from '../components/AppLayout.vue'
 import { notificationApi } from '../api/notifications'
 
@@ -136,30 +161,67 @@ function formatTime(dateStr) {
 
 <style scoped>
 .loading-state {
-  max-width: 600px;
+  max-width: 640px;
   margin: 0 auto;
 }
 
 .notification-list {
-  max-width: 600px;
+  max-width: 680px;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+}
+
+.notification-summary {
+  margin-bottom: 16px;
+  padding: 0 4px;
+}
+
+.summary-text {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.summary-text strong {
+  color: var(--color-primary);
+  font-weight: 600;
 }
 
 .notification-card {
+  display: flex;
+  gap: 0;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 8px;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: all var(--transition-fast);
+  overflow: hidden;
+}
+
+.notification-card:hover {
+  border-color: var(--color-primary-lighter);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
 }
 
 .notification-card.unread {
-  border-left: 3px solid #409eff;
-  background-color: #f0f6ff;
+  border-left: none;
 }
 
-.notification-card.unread .notification-title {
-  font-weight: bold;
+.notification-indicator {
+  width: 4px;
+  min-height: 100%;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.indicator-unread {
+  background: var(--color-primary-lighter);
+}
+
+.notification-body {
+  flex: 1;
+  padding: 16px 20px;
+  min-width: 0;
 }
 
 .notification-header {
@@ -169,24 +231,38 @@ function formatTime(dateStr) {
   margin-bottom: 8px;
 }
 
+.type-tag {
+  border: none;
+}
+
 .notification-time {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-muted);
 }
 
 .notification-title {
-  margin: 0 0 4px 0;
-  color: #303133;
+  margin: 0 0 4px;
+  font-size: 15px;
+  color: var(--color-text);
+}
+
+.notification-card.unread .notification-title {
+  font-weight: 600;
 }
 
 .notification-content {
   margin: 0;
-  color: #606266;
+  color: var(--color-text-secondary);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .notification-meta {
-  margin-top: 8px;
+  margin-top: 10px;
+}
+
+.empty-notifications {
+  color: var(--color-text-muted);
+  opacity: 0.4;
 }
 </style>

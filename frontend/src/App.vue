@@ -1,5 +1,9 @@
 <template>
-  <router-view />
+  <router-view v-slot="{ Component }">
+    <transition name="slide-up" mode="out-in">
+      <component :is="Component" />
+    </transition>
+  </router-view>
 </template>
 
 <script setup>
@@ -7,9 +11,5 @@
 </script>
 
 <style>
-body {
-  margin: 0;
-  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  background-color: #f5f7fa;
-}
+/* Root-level styles handled by global.css */
 </style>

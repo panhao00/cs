@@ -32,6 +32,10 @@ crs:
     max-alternate: 2
     offering-max-students: 10
     offering-min-students: 3
+  # Billing 通知重试配置
+  billing:
+    retry-count: 3
+    retry-delay-ms: 1000
 
 logging:
   level:

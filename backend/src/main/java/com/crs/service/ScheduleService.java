@@ -19,6 +19,7 @@ import com.crs.repository.EnrollmentRepository;
 import com.crs.repository.GradeRepository;
 import com.crs.repository.ScheduleItemRepository;
 import com.crs.repository.ScheduleRepository;
+import com.crs.web.dto.CapacityWarning;
 import com.crs.web.dto.ScheduleResponse;
 import com.crs.web.dto.SelectOfferingsRequest;
 import com.crs.web.dto.SubmitResult;
@@ -197,7 +198,13 @@ public class ScheduleService {
 
         log.info("学生 {} 选择 {} 个开设写入课表 {}", studentId,
                 request.getSelections().size(), schedule.getId());
-        return toResponse(schedule, studentId);
+
+        // 构建响应并检查容量警告
+        ScheduleResponse response = toResponse(schedule, studentId);
+        List<CapacityWarning> warnings = checkCapacityWarnings(schedule.getId());
+        response.setCapacityWarnings(warnings);
+
+        return response;
     }
 
     /**
@@ -450,6 +457,57 @@ public class ScheduleService {
     }
 
     // ==================== 内部方法 ====================
+
+    /**
+     * 检查课表中所有选中课程的容量状态,返回容量警告列表。
+     * <p>
+     * 告警条件:
+     * - 已满员(当前人数 >= 最大容量): 提示"已满员"
+     * - 接近满员(当前人数 >= 最大容量 - 1): 提示"已接近满员"
+     * <p>
+     * 用于 selectOfferings 响应中,在学生提交课表之前提前通知容量变化。
+     */
+    private List<CapacityWarning> checkCapacityWarnings(Long scheduleId) {
+        List<CapacityWarning> warnings = new ArrayList<>();
+        List<ScheduleItem> items = itemRepository.findByScheduleId(scheduleId);
+
+        for (ScheduleItem item : items) {
+            if (item.getStatus() != ItemStatus.SELECTED) {
+                continue; // 仅检查 SELECTED 状态的项
+            }
+
+            CourseOffering offering = offeringRepository.findById(item.getOfferingId()).orElse(null);
+            if (offering == null) {
+                continue;
+            }
+
+            long enrolled = enrollmentRepository.countByOfferingIdAndStatus(
+                    offering.getId(), EnrollmentStatus.ENROLLED);
+            int maxCap = offering.getMaxCapacity() != null ? offering.getMaxCapacity() : offeringMaxStudents;
+
+            if (enrolled >= maxCap) {
+                // 已满员
+                warnings.add(new CapacityWarning(
+                        offering.getId(),
+                        offering.getCourseId(),
+                        (int) enrolled,
+                        maxCap,
+                        "课程 " + offering.getCourseId() + " 已满员 ("
+                                + enrolled + "/" + maxCap + ")"));
+            } else if (enrolled >= maxCap - 1) {
+                // 接近满员(仅剩 1 个名额)
+                warnings.add(new CapacityWarning(
+                        offering.getId(),
+                        offering.getCourseId(),
+                        (int) enrolled,
+                        maxCap,
+                        "课程 " + offering.getCourseId() + " 已接近满员 ("
+                                + enrolled + "/" + maxCap + ")"));
+            }
+        }
+
+        return warnings;
+    }
 
     /**
      * 注册是否处于活跃阶段(open 或 add-drop)。

@@ -14,27 +14,45 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>可选课程开设</span>
-              <el-button text @click="loadOfferings">刷新</el-button>
+              <div class="card-title">
+                <el-icon><DocumentAdd /></el-icon>
+                <span>可选课程开设</span>
+              </div>
+              <el-button text @click="loadOfferings">
+                <el-icon><Refresh /></el-icon>
+                刷新
+              </el-button>
             </div>
           </template>
+
+          <el-skeleton v-if="loadingOfferings" :rows="6" animated />
+
+          <el-empty v-else-if="offerings.length === 0" description="暂无可选课程">
+            <template #image>
+              <div class="empty-icon">
+                <el-icon :size="48"><Document /></el-icon>
+              </div>
+            </template>
+          </el-empty>
+
           <el-table
+            v-else
             :data="offerings"
-            v-loading="loadingOfferings"
             stripe
             @selection-change="handleSelectionChange"
+            class="refined-table"
           >
             <el-table-column type="selection" width="45" />
             <el-table-column prop="courseId" label="课程号" width="90" />
-            <el-table-column prop="courseTitle" label="名称" />
+            <el-table-column prop="courseTitle" label="名称" min-width="120" show-overflow-tooltip />
             <el-table-column label="时间" width="160">
               <template #default="{ row }">
-                {{ row.days }} {{ row.times }}
+                <span class="time-cell">{{ row.days }} {{ row.times }}</span>
               </template>
             </el-table-column>
             <el-table-column label="容量" width="100">
               <template #default="{ row }">
-                <el-tag :type="capacityTag(row)">
+                <el-tag :type="capacityTag(row)" size="small" effect="dark">
                   {{ row.enrolledCount }}/{{ row.maxCapacity }}
                 </el-tag>
               </template>
@@ -42,18 +60,18 @@
             <el-table-column prop="professorName" label="教授" width="100" />
           </el-table>
 
-          <div style="margin-top: 12px">
-            <el-radio-group v-model="selectKind">
+          <div class="table-actions">
+            <el-radio-group v-model="selectKind" size="default">
               <el-radio-button label="PRIMARY">主选</el-radio-button>
               <el-radio-button label="ALTERNATE">备选</el-radio-button>
             </el-radio-group>
             <el-button
-              style="margin-left: 12px"
               type="primary"
               plain
               :disabled="selectedToAdd.length === 0"
               @click="handleSelectOfferings"
             >
+              <el-icon><Plus /></el-icon>
               加入课表
             </el-button>
           </div>
@@ -64,31 +82,56 @@
       <el-col :span="10">
         <el-card>
           <template #header>
-            <span>我的课表 (主选 {{ schedule.primaryCount }}/4, 备选 {{ schedule.alternateCount }}/2)</span>
+            <div class="card-title">
+              <el-icon><List /></el-icon>
+              <span>我的课表</span>
+              <div class="schedule-counts">
+                <el-tag type="primary" size="small">主选 {{ schedule.primaryCount }}/4</el-tag>
+                <el-tag type="info" size="small">备选 {{ schedule.alternateCount }}/2</el-tag>
+              </div>
+            </div>
           </template>
-          <el-empty v-if="!schedule.items || schedule.items.length === 0"
-                    description="课表为空,请选择课程" />
-          <el-table v-else :data="schedule.items" size="small">
+
+          <el-empty
+            v-if="!schedule.items || schedule.items.length === 0"
+            description="课表为空,请选择课程"
+          >
+            <template #image>
+              <div class="empty-icon schedule-empty">
+                <el-icon :size="48"><Calendar /></el-icon>
+              </div>
+            </template>
+          </el-empty>
+
+          <el-table v-else :data="schedule.items" size="small" class="refined-table">
             <el-table-column prop="courseId" label="课程" width="80" />
-            <el-table-column prop="courseTitle" label="名称" />
+            <el-table-column prop="courseTitle" label="名称" min-width="100" show-overflow-tooltip />
             <el-table-column label="类型" width="60">
               <template #default="{ row }">
-                <el-tag size="small" :type="row.kind === 'PRIMARY' ? 'primary' : 'info'">
+                <el-tag
+                  size="small"
+                  :type="row.kind === 'PRIMARY' ? 'primary' : 'info'"
+                  effect="dark"
+                >
                   {{ row.kind === 'PRIMARY' ? '主' : '备' }}
                 </el-tag>
               </template>
             </el-table-column>
             <el-table-column label="状态" width="80">
               <template #default="{ row }">
-                <el-tag size="small" :type="statusTag(row.status)">
+                <el-tag size="small" :type="statusTag(row.status)" effect="dark">
                   {{ statusLabel(row.status) }}
                 </el-tag>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="70">
               <template #default="{ row }">
-                <el-button size="small" type="danger" text
-                           @click="handleRemoveOffering(row.offeringId)">
+                <el-button
+                  size="small"
+                  type="danger"
+                  text
+                  @click="handleRemoveOffering(row.offeringId)"
+                >
                   移除
                 </el-button>
               </template>
@@ -102,10 +145,10 @@
             show-icon
             :closable="true"
             @close="submitResult = null"
-            style="margin-top: 12px"
+            class="submit-alert"
           >
             <div v-if="submitResult.errors && submitResult.errors.length">
-              <div v-for="(e, i) in submitResult.errors" :key="i" style="font-size: 12px">
+              <div v-for="(e, i) in submitResult.errors" :key="i" class="error-detail">
                 <strong>{{ e.courseId }}</strong> [{{ e.errorType }}]: {{ e.message }}
               </div>
             </div>
@@ -119,6 +162,9 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  DocumentAdd, Refresh, Plus, List, Calendar, Document
+} from '@element-plus/icons-vue'
 import { catalogApi, scheduleApi } from '../api/courses'
 import AppLayout from '../components/AppLayout.vue'
 
@@ -160,7 +206,6 @@ async function loadMySchedule() {
     Object.assign(schedule, res.data)
   } catch (e) {
     if (e.response?.status === 404) {
-      // 课表不存在,自动创建
       try {
         const res = await scheduleApi.createSchedule(semester)
         Object.assign(schedule, res.data)
@@ -244,7 +289,6 @@ async function handleDelete() {
   try {
     await scheduleApi.deleteSchedule(semester)
     ElMessage.success('课表已删除')
-    // 重新创建空课表
     const res = await scheduleApi.createSchedule(semester)
     Object.assign(schedule, res.data)
   } catch (e) {
@@ -273,5 +317,53 @@ function statusLabel(status) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.schedule-counts {
+  display: flex;
+  gap: 6px;
+  margin-left: 8px;
+}
+
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.time-cell {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.submit-alert {
+  margin-top: 16px;
+}
+
+.error-detail {
+  font-size: 12px;
+  padding: 2px 0;
+  line-height: 1.6;
+}
+
+.empty-icon {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
+
+.schedule-empty {
+  color: var(--color-primary-lighter);
 }
 </style>

@@ -1,36 +1,83 @@
 <template>
   <AppLayout :title="'成绩单 - ' + report.semester">
-    <el-card v-loading="loading">
-      <template #header>
-        <div class="card-header">
-          <span>上学期成绩</span>
-          <el-tag size="large" type="success">GPA: {{ report.gpa }}</el-tag>
+    <el-skeleton v-if="loading" :rows="8" animated />
+
+    <template v-else>
+      <!-- GPA Summary Card -->
+      <div class="gpa-summary">
+        <div class="gpa-main">
+          <div class="gpa-label">GPA</div>
+          <div class="gpa-value">{{ report.gpa }}</div>
         </div>
-      </template>
-      <el-empty v-if="!report.entries || report.entries.length === 0"
-                description="上学期无成绩记录" />
-      <el-table v-else :data="report.entries" stripe>
-        <el-table-column prop="courseId" label="课程号" width="100" />
-        <el-table-column prop="courseTitle" label="名称" />
-        <el-table-column prop="department" label="院系" width="150" />
-        <el-table-column prop="credits" label="学分" width="80" />
-        <el-table-column label="成绩" width="80">
-          <template #default="{ row }">
-            <el-tag v-if="row.grade" :type="gradeTagType(row.grade)">
-              {{ row.grade }}
-            </el-tag>
-            <el-tag v-else type="info" size="small">未录入</el-tag>
+        <div class="gpa-details">
+          <div class="gpa-detail-item">
+            <span class="detail-number">{{ report.entries?.length || 0 }}</span>
+            <span class="detail-label">Courses</span>
+          </div>
+          <div class="gpa-detail-item">
+            <span class="detail-number">{{ totalCredits }}</span>
+            <span class="detail-label">Credits</span>
+          </div>
+          <div class="gpa-detail-item">
+            <span class="detail-number">{{ report.semester }}</span>
+            <span class="detail-label">Semester</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grades Table -->
+      <el-card>
+        <template #header>
+          <div class="card-title">
+            <el-icon><DataAnalysis /></el-icon>
+            <span>上学期成绩明细</span>
+          </div>
+        </template>
+
+        <el-empty v-if="!report.entries || report.entries.length === 0" description="上学期无成绩记录">
+          <template #image>
+            <div class="empty-grades">
+              <el-icon :size="48"><Document /></el-icon>
+            </div>
           </template>
-        </el-table-column>
-        <el-table-column prop="professorName" label="教授" width="120" />
-      </el-table>
-    </el-card>
+        </el-empty>
+
+        <el-table v-else :data="report.entries" stripe class="refined-table">
+          <el-table-column prop="courseId" label="课程号" width="100" />
+          <el-table-column prop="courseTitle" label="名称" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="department" label="院系" width="150">
+            <template #default="{ row }">
+              <span class="muted-text">{{ row.department }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="credits" label="学分" width="80" align="center">
+            <template #default="{ row }">
+              <span class="credit-cell">{{ row.credits }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="成绩" width="80" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.grade" :type="gradeTagType(row.grade)" effect="dark" class="grade-tag">
+                {{ row.grade }}
+              </el-tag>
+              <el-tag v-else type="info" size="small" effect="plain">未录入</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="professorName" label="教授" width="120">
+            <template #default="{ row }">
+              <span class="muted-text">{{ row.professorName }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-card>
+    </template>
   </AppLayout>
 </template>
 
 <script setup>
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { DataAnalysis, Document } from '@element-plus/icons-vue'
 import { reportCardApi } from '../api/teaching'
 import AppLayout from '../components/AppLayout.vue'
 
@@ -40,6 +87,11 @@ const report = reactive({
   gpa: 0
 })
 const loading = ref(true)
+
+const totalCredits = computed(() => {
+  if (!report.entries || report.entries.length === 0) return 0
+  return report.entries.reduce((sum, e) => sum + (e.credits || 0), 0)
+})
 
 onMounted(async () => {
   loading.value = true
@@ -59,5 +111,87 @@ function gradeTagType(grade) {
 </script>
 
 <style scoped>
-.card-header { display: flex; justify-content: space-between; align-items: center; }
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* GPA Summary */
+.gpa-summary {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  border-radius: var(--radius-xl);
+  padding: 28px 36px;
+  margin-bottom: 20px;
+  color: white;
+}
+
+.gpa-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-right: 40px;
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.gpa-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  opacity: 0.8;
+  text-transform: uppercase;
+}
+
+.gpa-value {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.gpa-details {
+  display: flex;
+  gap: 32px;
+}
+
+.gpa-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-number {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.detail-label {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.muted-text {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.credit-cell {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.grade-tag {
+  font-weight: 700;
+  min-width: 36px;
+  text-align: center;
+}
+
+.empty-grades {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
 </style>
