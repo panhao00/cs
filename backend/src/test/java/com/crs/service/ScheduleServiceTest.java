@@ -87,6 +87,9 @@ class ScheduleServiceTest {
     @Mock
     private AuditService auditService;
 
+    @Mock
+    private com.crs.common.PrerequisiteChecker prerequisiteChecker;
+
     @InjectMocks
     private ScheduleService scheduleService;
 
@@ -103,6 +106,9 @@ class ScheduleServiceTest {
         ReflectionTestUtils.setField(scheduleService, "maxAlternate", 2);
         ReflectionTestUtils.setField(scheduleService, "offeringMaxStudents", 10);
         ReflectionTestUtils.setField(scheduleService, "offeringMinStudents", 3);
+
+        // 默认先修课通过
+        lenient().when(prerequisiteChecker.hasPassedPrerequisite(anyLong(), anyString())).thenReturn(true);
 
         // 默认注册开放 — service 现在使用 isOpen()/isClosed() 便捷方法
         lenient().when(registrationPhase.isOpen()).thenReturn(true);
@@ -135,8 +141,8 @@ class ScheduleServiceTest {
             when(offeringRepository.findById(1L)).thenReturn(Optional.of(offering));
             when(courseRepository.findById("CS201")).thenReturn(Optional.of(course));
 
-            // 学生没有 CS101 的及格成绩
-            when(gradeRepository.findByStudentId(STUDENT_ID)).thenReturn(List.of());
+            // 先修课未通过
+            when(prerequisiteChecker.hasPassedPrerequisite(STUDENT_ID, "CS101")).thenReturn(false);
 
             // Act
             SubmitResult result = scheduleService.submitSchedule(STUDENT_ID, SEMESTER);
@@ -162,11 +168,8 @@ class ScheduleServiceTest {
             when(offeringRepository.findById(1L)).thenReturn(Optional.of(offering));
             when(courseRepository.findById("CS201")).thenReturn(Optional.of(course));
 
-            // 学生有 CS101 的 B 成绩
-            CourseOffering prereqOffering = createOffering(10L, "CS101");
-            Grade grade = createGrade(1L, 10L, STUDENT_ID, "B");
-            when(gradeRepository.findByStudentId(STUDENT_ID)).thenReturn(List.of(grade));
-            when(offeringRepository.findById(10L)).thenReturn(Optional.of(prereqOffering));
+            // 先修课已通过
+            when(prerequisiteChecker.hasPassedPrerequisite(STUDENT_ID, "CS101")).thenReturn(true);
 
             // 容量校验
             when(enrollmentRepository.countByOfferingIdAndStatus(1L, EnrollmentStatus.ENROLLED))
@@ -197,11 +200,8 @@ class ScheduleServiceTest {
             when(offeringRepository.findById(1L)).thenReturn(Optional.of(offering));
             when(courseRepository.findById("CS201")).thenReturn(Optional.of(course));
 
-            // 学生有 CS101 的 F 成绩 — 不算通过
-            CourseOffering prereqOffering = createOffering(10L, "CS101");
-            Grade grade = createGrade(1L, 10L, STUDENT_ID, "F");
-            when(gradeRepository.findByStudentId(STUDENT_ID)).thenReturn(List.of(grade));
-            when(offeringRepository.findById(10L)).thenReturn(Optional.of(prereqOffering));
+            // 先修课未通过
+            when(prerequisiteChecker.hasPassedPrerequisite(STUDENT_ID, "CS101")).thenReturn(false);
 
             // Act
             SubmitResult result = scheduleService.submitSchedule(STUDENT_ID, SEMESTER);
@@ -680,8 +680,8 @@ class ScheduleServiceTest {
             when(courseRepository.findById("CS201")).thenReturn(Optional.of(c2));
             when(enrollmentRepository.countByOfferingIdAndStatus(anyLong(), any())).thenReturn(0L);
 
-            // 学生没有 CS101 的及格成绩, CS201 先修课不满足
-            when(gradeRepository.findByStudentId(STUDENT_ID)).thenReturn(List.of());
+            // CS101 无先修课 → 跳过检查; CS201 需要 CS101 → 未通过
+            when(prerequisiteChecker.hasPassedPrerequisite(STUDENT_ID, "CS101")).thenReturn(false);
 
             // Act
             SubmitResult result = scheduleService.submitSchedule(STUDENT_ID, SEMESTER);

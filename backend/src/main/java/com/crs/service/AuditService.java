@@ -16,8 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
  * - 用户创建/修改/删除
  * - 查看成绩单
  * - 关闭注册
- * <p>
- * 参考 AI 生成,经人工核验与调整。
  */
 @Slf4j
 @Service
@@ -56,6 +54,11 @@ public class AuditService {
     /** 记录登录成功 */
     public void recordLoginSuccess(Long userId, String username) {
         record(userId, "LOGIN_SUCCESS", "User", userId, "username=" + username);
+    }
+
+    /** 记录用户注册 */
+    public void recordRegister(Long userId, String username) {
+        record(userId, "REGISTER", "User", userId, "username=" + username);
     }
 
     /** 记录登录失败 */

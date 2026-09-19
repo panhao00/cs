@@ -12,8 +12,6 @@ import lombok.Setter;
  * <p>
  * 学生/教授可自行注册账号,默认角色为 STUDENT。
  * 若需注册为 PROFESSOR,须提供 department 字段。
- * <p>
- * 参考 AI 生成,经人工核验。
  */
 @Getter
 @Setter

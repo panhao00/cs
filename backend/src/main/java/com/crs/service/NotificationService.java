@@ -20,8 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
  * - 课程取消时通知受影响的学生
  * - 注册关闭时通知所有学生
  * - 选课成功/失败时通知学生
- * <p>
- * 参考 AI 生成,经人工核验与调整。
  */
 @Slf4j
 @Service
@@ -71,15 +69,18 @@ public class NotificationService {
 
     /**
      * 标记学生所有通知为已读。
+     * <p>
+     * 优化: 使用批量 saveAll() 代替逐条 save()，将 N+1 写入减少为 1 次批量写入。
      */
     @Transactional
     public void markAllAsRead(Long studentId) {
         List<Notification> unread = notificationRepository
                 .findByStudentIdAndReadFalseOrderByCreatedAtDesc(studentId);
-        for (Notification n : unread) {
-            n.setRead(true);
-            notificationRepository.save(n);
+        if (unread.isEmpty()) {
+            return;
         }
+        unread.forEach(n -> n.setRead(true));
+        notificationRepository.saveAll(unread);
         log.info("学生 {} 的 {} 条通知已标记为已读", studentId, unread.size());
     }
 
@@ -163,6 +164,21 @@ public class NotificationService {
     }
 
     /**
+     * 通知学生候补递补成功。
+     */
+    @Transactional
+    public void notifyWaitlistPromoted(Long studentId, Long offeringId, String courseId) {
+        createNotification(
+                studentId,
+                NotificationType.ENROLLMENT_SUCCESS,
+                "候补递补成功",
+                String.format("您已通过候补名单成功注册课程 %s。", courseId),
+                offeringId,
+                courseId
+        );
+    }
+
+    /**
      * 通知学生成绩已录入。
      */
     @Transactional
@@ -173,6 +189,35 @@ public class NotificationService {
                 NotificationType.GRADE_POSTED,
                 "成绩已录入",
                 String.format("课程 %s 的成绩已录入: %s", courseId, grade),
+                offeringId,
+                courseId
+        );
+    }
+
+    /**
+     * 通知学生课程容量已满或接近满员。
+     * <p>
+     * 在提交课表时,若课程开设已满员或仅剩 1 个名额,通知学生注意容量风险。
+     */
+    @Transactional
+    public void notifyCapacityWarning(Long studentId, Long offeringId, String courseId,
+                                      int currentEnrolled, int maxCapacity) {
+        String title;
+        String content;
+        if (currentEnrolled >= maxCapacity) {
+            title = "课程已满员";
+            content = String.format("课程 %s 已满员 (%d/%d),您可能无法注册该课程。",
+                    courseId, currentEnrolled, maxCapacity);
+        } else {
+            title = "课程接近满员";
+            content = String.format("课程 %s 接近满员 (%d/%d),仅剩 %d 个名额,请尽快提交。",
+                    courseId, currentEnrolled, maxCapacity, maxCapacity - currentEnrolled);
+        }
+        createNotification(
+                studentId,
+                NotificationType.CAPACITY_WARNING,
+                title,
+                content,
                 offeringId,
                 courseId
         );

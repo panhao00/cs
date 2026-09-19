@@ -63,7 +63,7 @@
                 <div
                   class="capacity-fill"
                   :class="capacityBarClass(row)"
-                  :style="{ width: Math.min((row.enrolledCount / row.maxCapacity) * 100, 100) + '%' }"
+                  :style="{ width: (row.maxCapacity > 0 ? Math.min((row.enrolledCount / row.maxCapacity) * 100, 100) : 0) + '%' }"
                 ></div>
               </div>
             </div>
@@ -132,7 +132,7 @@ function handleSelectionChange(val) {
 }
 
 function capacityBarClass(row) {
-  const ratio = row.enrolledCount / row.maxCapacity
+  const ratio = row.maxCapacity > 0 ? row.enrolledCount / row.maxCapacity : 1
   if (ratio >= 1) return 'bar-full'
   if (ratio >= 0.8) return 'bar-high'
   return 'bar-normal'
@@ -230,5 +230,23 @@ async function handleSubmit() {
 .empty-icon {
   color: var(--color-text-muted);
   opacity: 0.5;
+}
+
+/* --- Mobile Responsive --- */
+@media (max-width: 768px) {
+  .card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .refined-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .conflict-alert {
+    margin-top: 12px;
+  }
 }
 </style>

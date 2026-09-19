@@ -45,8 +45,6 @@ import static org.mockito.Mockito.*;
  *   <li>开设无容量时跳过提升</li>
  *   <li>开设非 OPEN 状态时跳过提升</li>
  * </ul>
- * <p>
- * 参考 AI 生成, 经人工核验与调整。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)

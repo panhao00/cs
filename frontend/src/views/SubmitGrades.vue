@@ -258,4 +258,39 @@ function gradeTagType(grade) {
 .roster-empty {
   color: var(--color-primary-lighter);
 }
+
+/* --- Mobile Responsive --- */
+@media (max-width: 768px) {
+  /* Stack columns vertically */
+  .el-row .el-col {
+    display: block;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-bottom: var(--space-4);
+  }
+
+  .card-title {
+    flex-wrap: wrap;
+  }
+
+  /* Grade input row wraps */
+  .grade-input-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .grade-select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .refined-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
 </style>

@@ -40,7 +40,7 @@ public class Notification {
     @Column(name = "course_id", length = 20)
     private String courseId;
 
-    @Column(nullable = false)
+    @Column(nullable = false, name = "is_read")
     private boolean read = false;
 
     @CreationTimestamp
@@ -61,6 +61,8 @@ public class Notification {
         REGISTRATION_CLOSED,
         /** 成绩录入 */
         GRADE_POSTED,
+        /** 容量警告(课程已满或接近满员) */
+        CAPACITY_WARNING,
         /** 系统通知 */
         SYSTEM
     }

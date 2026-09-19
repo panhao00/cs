@@ -77,6 +77,9 @@ class AuthServiceTest {
         validRequest = new LoginRequest();
         validRequest.setUsername("student");
         validRequest.setPassword("student");
+
+        // 默认: save 直接返回传入的 User (账户锁定持久化需要)
+        lenient().when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
     // ==================== 辅助方法 ====================
@@ -100,7 +103,7 @@ class AuthServiceTest {
         // Arrange
         Authentication auth = createSuccessfulAuth(1L, Role.STUDENT);
         when(authenticationManager.authenticate(any())).thenReturn(auth);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
+        when(userRepository.findByUsername("student")).thenReturn(Optional.of(sampleUser));
         when(tokenProvider.generate(1L, "student", Role.STUDENT)).thenReturn(MOCK_TOKEN);
         when(tokenProvider.getExpirationMs()).thenReturn(EXPIRATION_MS);
 
@@ -122,6 +125,7 @@ class AuthServiceTest {
     @DisplayName("登录失败 - 密码错误抛出 BadCredentialsException")
     void login_invalidPassword_throwsBadCredentials() {
         // Arrange
+        when(userRepository.findByUsername("student")).thenReturn(Optional.of(sampleUser));
         when(authenticationManager.authenticate(any()))
                 .thenThrow(new BadCredentialsException("用户名或密码错误"));
 
@@ -136,6 +140,16 @@ class AuthServiceTest {
     @DisplayName("登录失败 - 连续 5 次失败后账户锁定")
     void login_5ConsecutiveFailures_locksAccount() {
         // Arrange
+        User attacker = new User();
+        attacker.setId(2L);
+        attacker.setUsername("attacker");
+        attacker.setPasswordHash("$2a$hashed");
+        attacker.setRole(Role.STUDENT);
+        attacker.setName("Attacker");
+        attacker.setStatus(User.UserStatus.ACTIVE);
+
+        when(userRepository.findByUsername("attacker")).thenReturn(Optional.of(attacker));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(authenticationManager.authenticate(any()))
                 .thenThrow(new BadCredentialsException("用户名或密码错误"));
 
@@ -161,6 +175,7 @@ class AuthServiceTest {
         nullPassReq.setUsername("student");
         nullPassReq.setPassword(null);
 
+        when(userRepository.findByUsername("student")).thenReturn(Optional.of(sampleUser));
         when(authenticationManager.authenticate(any()))
                 .thenThrow(new BadCredentialsException("用户名或密码错误"));
 
@@ -177,7 +192,7 @@ class AuthServiceTest {
         // Arrange
         Authentication auth = createSuccessfulAuth(1L, Role.STUDENT);
         when(authenticationManager.authenticate(any())).thenReturn(auth);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
+        when(userRepository.findByUsername("student")).thenReturn(Optional.of(sampleUser));
         when(tokenProvider.generate(1L, "student", Role.STUDENT)).thenReturn(MOCK_TOKEN);
         when(tokenProvider.getExpirationMs()).thenReturn(EXPIRATION_MS);
 
@@ -197,7 +212,7 @@ class AuthServiceTest {
         long customExpiration = 7200000L; // 2 小时
         Authentication auth = createSuccessfulAuth(1L, Role.STUDENT);
         when(authenticationManager.authenticate(any())).thenReturn(auth);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
+        when(userRepository.findByUsername("student")).thenReturn(Optional.of(sampleUser));
         when(tokenProvider.generate(1L, "student", Role.STUDENT)).thenReturn(MOCK_TOKEN);
         when(tokenProvider.getExpirationMs()).thenReturn(customExpiration);
 
@@ -218,7 +233,7 @@ class AuthServiceTest {
         // Arrange
         Authentication auth = createSuccessfulAuth(1L, Role.STUDENT);
         when(authenticationManager.authenticate(any())).thenReturn(auth);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
+        when(userRepository.findByUsername("student")).thenReturn(Optional.of(sampleUser));
         when(tokenProvider.generate(1L, "student", Role.STUDENT)).thenReturn(MOCK_TOKEN);
         when(tokenProvider.getExpirationMs()).thenReturn(EXPIRATION_MS);
 
@@ -234,6 +249,7 @@ class AuthServiceTest {
     @DisplayName("登录失败 - 记录失败审计日志")
     void login_failure_recordsFailedAuditLog() {
         // Arrange
+        when(userRepository.findByUsername("student")).thenReturn(Optional.of(sampleUser));
         when(authenticationManager.authenticate(any()))
                 .thenThrow(new BadCredentialsException("密码错误"));
 

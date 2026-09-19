@@ -28,5 +28,6 @@ public class ReportCardDTO {
         private Integer credits;
         private String grade;
         private String professorName;
+        private String maskedSsn;
     }
 }

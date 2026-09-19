@@ -17,11 +17,11 @@
           <span class="cap-icon">&#9960;</span>
         </div>
         <h1 class="brand-name">WYLIE COLLEGE</h1>
-        <p class="brand-subtitle">Course Registration System</p>
+        <p class="brand-subtitle">课程注册系统</p>
       </div>
 
-      <h2 class="form-title">Welcome Back</h2>
-      <p class="form-desc">Sign in to your account</p>
+      <h2 class="form-title">欢迎回来</h2>
+      <p class="form-desc">登录您的账号</p>
 
       <el-form
         ref="formRef"
@@ -34,7 +34,7 @@
           <el-input
             v-model="form.username"
             size="large"
-            placeholder="Username"
+            placeholder="用户名"
             :prefix-icon="User"
           />
         </el-form-item>
@@ -44,7 +44,7 @@
             v-model="form.password"
             size="large"
             type="password"
-            placeholder="Password"
+            placeholder="密码"
             :prefix-icon="Lock"
             show-password
             @keyup.enter="handleLogin"
@@ -59,7 +59,7 @@
             :loading="loading"
             @click="handleLogin"
           >
-            Sign In
+            登录
           </el-button>
         </el-form-item>
       </el-form>
@@ -73,7 +73,7 @@
       />
 
       <div class="divider">
-        <span>Quick Access</span>
+        <span>快速登录</span>
       </div>
 
       <div class="test-accounts">
@@ -83,7 +83,7 @@
           effect="plain"
         >
           <el-icon><Setting /></el-icon>
-          Registrar
+          注册主任
         </el-tag>
         <el-tag
           type="success"
@@ -92,7 +92,7 @@
           effect="plain"
         >
           <el-icon><UserFilled /></el-icon>
-          Professor
+          教授
         </el-tag>
         <el-tag
           type="warning"
@@ -101,13 +101,13 @@
           effect="plain"
         >
           <el-icon><Reading /></el-icon>
-          Student
+          学生
         </el-tag>
       </div>
 
       <div class="auth-link">
-        Don't have an account?
-        <router-link to="/signup">Create one</router-link>
+        还没有账号？
+        <router-link to="/signup">注册账号</router-link>
       </div>
     </div>
   </div>
@@ -420,5 +420,66 @@ async function handleLogin() {
 
 .auth-link a:hover {
   color: var(--color-primary);
+}
+
+/* --- Mobile Responsive --- */
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 28px 20px 24px;
+    border-radius: 16px;
+    margin: 0 12px;
+  }
+
+  .brand-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    margin-bottom: 10px;
+  }
+
+  .cap-icon {
+    font-size: 24px;
+  }
+
+  .brand-name {
+    font-size: 15px;
+    letter-spacing: 0.15em;
+  }
+
+  .brand-subtitle {
+    font-size: 11px;
+  }
+
+  .form-title {
+    font-size: 19px;
+  }
+
+  .form-desc {
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+
+  .brand-header {
+    margin-bottom: 20px;
+  }
+
+  .divider {
+    margin: 16px 0 12px;
+  }
+
+  .test-accounts {
+    gap: 6px;
+  }
+
+  .account-tag {
+    padding: 5px 10px !important;
+    font-size: 12px;
+  }
+
+  /* Reduce floating shape sizes */
+  .shape-1 { width: 200px; height: 200px; }
+  .shape-2 { width: 140px; height: 140px; }
+  .shape-3 { width: 100px; height: 100px; }
+  .shape-5 { width: 160px; height: 160px; }
 }
 </style>

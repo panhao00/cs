@@ -48,12 +48,18 @@ public class GradeService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final AuditService auditService;
+    private final com.crs.common.SemesterConfig semesterConfig;
 
     private static final Set<String> VALID_GRADES = Set.of("A", "B", "C", "D", "F", "I");
 
-    /** 上学期常量(简化: 实际可从注册周期表查询) */
-    private static final String PREVIOUS_SEMESTER = "2026-SPRING";
-    private static final String CURRENT_SEMESTER = "2026-FALL";
+    /** 上学期(从 SemesterConfig 计算,避免硬编码) */
+    private String previousSemester() {
+        return semesterConfig.getPreviousSemester();
+    }
+
+    private String currentSemester() {
+        return semesterConfig.getCurrentSemester();
+    }
 
     /**
      * 获取教授上学期授课列表(基本流 1)。
@@ -61,10 +67,11 @@ public class GradeService {
      */
     @Transactional(readOnly = true)
     public List<TeachingOfferingDTO> getTaughtOfferings(Long professorId) {
+        String sem = previousSemester();
         List<CourseOffering> allByProf = offeringRepository
-                .findBySemesterAndProfessorId(PREVIOUS_SEMESTER, professorId);
+                .findBySemesterAndProfessorId(sem, professorId);
         if (allByProf.isEmpty()) {
-            log.info("教授 {} 在 {} 学期未授课", professorId, PREVIOUS_SEMESTER);
+            log.info("教授 {} 在 {} 学期未授课", professorId, sem);
         }
         return allByProf.stream()
                 .map(o -> {

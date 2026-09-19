@@ -103,6 +103,7 @@ public class CatalogService {
             profName = userRepository.findById(o.getProfessorId())
                     .map(User::getName).orElse(null);
         }
+        int maxCap = o.getMaxCapacity() != null ? o.getMaxCapacity() : 10;
         return new CourseOfferingDTO(
                 o.getId(),
                 o.getCourseId(),
@@ -114,9 +115,9 @@ public class CatalogService {
                 o.getDays(),
                 o.getTimes(),
                 o.getRoom(),
-                o.getMaxCapacity(),
+                maxCap,
                 (int) enrolled,
-                o.getMaxCapacity() - (int) enrolled,
+                maxCap - (int) enrolled,
                 o.getStatus(),
                 o.getProfessorId(),
                 profName

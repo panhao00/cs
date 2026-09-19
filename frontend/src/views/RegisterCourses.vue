@@ -58,6 +58,22 @@
               </template>
             </el-table-column>
             <el-table-column prop="professorName" label="教授" width="100" />
+            <el-table-column label="操作" width="120" fixed="right">
+              <template #default="{ row }">
+                <el-button size="small" type="primary" text @click="viewDetail(row)">
+                  详情
+                </el-button>
+                <el-button
+                  v-if="row.enrolledCount >= row.maxCapacity"
+                  size="small"
+                  type="warning"
+                  text
+                  @click="handleJoinWaitlist(row)"
+                >
+                  候补
+                </el-button>
+              </template>
+            </el-table-column>
           </el-table>
 
           <div class="table-actions">
@@ -82,13 +98,23 @@
       <el-col :span="10">
         <el-card>
           <template #header>
-            <div class="card-title">
-              <el-icon><List /></el-icon>
-              <span>我的课表</span>
-              <div class="schedule-counts">
-                <el-tag type="primary" size="small">主选 {{ schedule.primaryCount }}/4</el-tag>
-                <el-tag type="info" size="small">备选 {{ schedule.alternateCount }}/2</el-tag>
+            <div class="card-header">
+              <div class="card-title">
+                <el-icon><List /></el-icon>
+                <span>我的课表</span>
+                <div class="schedule-counts">
+                  <el-tag type="primary" size="small">主选 {{ schedule.primaryCount }}/4</el-tag>
+                  <el-tag type="info" size="small">备选 {{ schedule.alternateCount }}/2</el-tag>
+                </div>
               </div>
+              <el-button-group v-if="schedule.items && schedule.items.length > 0">
+                <el-button :type="viewMode === 'list' ? 'primary' : ''" @click="viewMode = 'list'" size="small">
+                  列表
+                </el-button>
+                <el-button :type="viewMode === 'timetable' ? 'primary' : ''" @click="viewMode = 'timetable'" size="small">
+                  课表
+                </el-button>
+              </el-button-group>
             </div>
           </template>
 
@@ -102,6 +128,12 @@
               </div>
             </template>
           </el-empty>
+
+          <ScheduleTimetable
+            v-else-if="viewMode === 'timetable'"
+            :items="schedule.items"
+            @conflicts-detected="detectedConflicts = $event"
+          />
 
           <el-table v-else :data="schedule.items" size="small" class="refined-table">
             <el-table-column prop="courseId" label="课程" width="80" />
@@ -156,25 +188,81 @@
         </el-card>
       </el-col>
     </el-row>
+
+    <!-- Offering Detail Dialog -->
+    <el-dialog v-model="showDetail" title="课程开设详情" width="520px">
+      <el-descriptions v-if="detailOffering" :column="2" border>
+        <el-descriptions-item label="课程号">{{ detailOffering.courseId }}</el-descriptions-item>
+        <el-descriptions-item label="课程名称">{{ detailOffering.courseTitle }}</el-descriptions-item>
+        <el-descriptions-item label="授课教授">{{ detailOffering.professorName }}</el-descriptions-item>
+        <el-descriptions-item label="上课时间">{{ detailOffering.days }} {{ detailOffering.times }}</el-descriptions-item>
+        <el-descriptions-item label="教室">{{ detailOffering.room || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="选课容量">
+          {{ detailOffering.enrolledCount }}/{{ detailOffering.maxCapacity }}
+        </el-descriptions-item>
+        <el-descriptions-item label="状态" :span="2">
+          <el-tag :type="detailOffering.status === 'ACTIVE' ? 'success' : 'info'" size="small">
+            {{ detailOffering.status || '-' }}
+          </el-tag>
+        </el-descriptions-item>
+      </el-descriptions>
+      <template #footer>
+        <el-button type="primary" plain @click="goToReviews(detailOffering)">
+          <el-icon><ChatDotRound /></el-icon>
+          查看评价
+        </el-button>
+        <el-button @click="showDetail = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </AppLayout>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  DocumentAdd, Refresh, Plus, List, Calendar, Document
+  DocumentAdd, Refresh, Plus, List, Calendar, Document, ChatDotRound
 } from '@element-plus/icons-vue'
 import { catalogApi, scheduleApi } from '../api/courses'
+import { waitlistApi } from '../api/waitlist'
 import AppLayout from '../components/AppLayout.vue'
+import ScheduleTimetable from '../components/ScheduleTimetable.vue'
+import { useAuthStore } from '../stores/auth'
+import { useWebSocket } from '../composables/useWebSocket'
 
+const auth = useAuthStore()
+const router = useRouter()
 const semester = import.meta.env.VITE_CURRENT_SEMESTER || '2026-FALL'
+
+// WebSocket for real-time capacity notifications
+const userId = computed(() => auth.user?.userId)
+const wsToken = computed(() => auth.token)
+const { connect: connectWs, disconnect: disconnectWs } = useWebSocket({
+  userId,
+  token: wsToken
+})
+
+// Connect on login, disconnect on logout
+watch(
+  () => auth.isLoggedIn,
+  (loggedIn) => {
+    if (loggedIn && userId.value) {
+      connectWs()
+    } else {
+      disconnectWs()
+    }
+  },
+  { immediate: true }
+)
 const offerings = ref([])
 const loadingOfferings = ref(false)
 const selectedToAdd = ref([])
 const selectKind = ref('PRIMARY')
 const submitting = ref(false)
 const submitResult = ref(null)
+const viewMode = ref('list')
+const detectedConflicts = ref([])
 
 const schedule = reactive({
   scheduleId: null,
@@ -183,6 +271,9 @@ const schedule = reactive({
   primaryCount: 0,
   alternateCount: 0
 })
+
+const showDetail = ref(false)
+const detailOffering = ref(null)
 
 onMounted(async () => {
   await Promise.all([loadOfferings(), loadMySchedule()])
@@ -297,7 +388,7 @@ async function handleDelete() {
 }
 
 function capacityTag(row) {
-  const ratio = row.enrolledCount / row.maxCapacity
+  const ratio = row.maxCapacity > 0 ? row.enrolledCount / row.maxCapacity : 1
   if (ratio >= 1) return 'danger'
   if (ratio >= 0.8) return 'warning'
   return 'success'
@@ -309,6 +400,35 @@ function statusTag(status) {
 
 function statusLabel(status) {
   return { SELECTED: '已选', ENROLLED_IN: '已注册', CANCELLED: '已取消' }[status] || status
+}
+
+async function viewDetail(offering) {
+  try {
+    const res = await catalogApi.getOffering(offering.offeringId)
+    detailOffering.value = res.data
+    showDetail.value = true
+  } catch (e) {
+    ElMessage.error('加载课程详情失败')
+  }
+}
+
+async function handleJoinWaitlist(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定加入 "${row.courseTitle}" 的候补名单？`,
+      '加入候补',
+      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'info' }
+    )
+    await waitlistApi.joinWaitlist(row.offeringId)
+    ElMessage.success('已加入候补名单')
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e.response?.data?.message || '加入候补失败')
+  }
+}
+
+function goToReviews(offering) {
+  showDetail.value = false
+  router.push(`/reviews/${offering.offeringId}`)
 }
 </script>
 
@@ -365,5 +485,48 @@ function statusLabel(status) {
 
 .schedule-empty {
   color: var(--color-primary-lighter);
+}
+
+/* --- Mobile Responsive --- */
+@media (max-width: 768px) {
+  /* Stack columns vertically */
+  .el-row .el-col {
+    display: block;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-bottom: var(--space-4);
+  }
+
+  /* Scrollable tables */
+  .refined-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Card header */
+  .card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Table actions - stack */
+  .table-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Schedule counts */
+  .schedule-counts {
+    margin-left: 0;
+    margin-top: 4px;
+  }
+
+  .card-title {
+    flex-wrap: wrap;
+  }
 }
 </style>

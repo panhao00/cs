@@ -3,6 +3,7 @@ package com.crs.web;
 import com.crs.domain.Role;
 import com.crs.domain.User;
 import com.crs.service.UserService;
+import com.crs.web.dto.ResetPasswordRequest;
 import com.crs.web.dto.UserDTO;
 import com.crs.web.dto.UserRequest;
 import jakarta.validation.Valid;
@@ -94,6 +95,18 @@ public class UserController {
                                               @RequestParam User.UserStatus status) {
         roleGuard.requireRegistrar();
         return ResponseEntity.ok(userService.setStatus(id, status));
+    }
+
+    /**
+     * 管理员重置用户密码。
+     */
+    @PutMapping("/{id}/reset-password")
+    public ResponseEntity<Void> resetPassword(
+            @PathVariable Long id,
+            @Valid @RequestBody ResetPasswordRequest request) {
+        roleGuard.requireRegistrar();
+        userService.resetPassword(id, request.getNewPassword());
+        return ResponseEntity.ok().build();
     }
 
     /**

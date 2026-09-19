@@ -14,8 +14,6 @@ import org.springframework.stereotype.Component;
 
 /**
  * JWT 令牌生成与校验。
- * <p>
- * 参考 AI 生成,经人工核验:密钥长度、过期、claims 结构由人工设定。
  */
 @Slf4j
 @Component
@@ -27,6 +25,14 @@ public class JwtTokenProvider {
     public JwtTokenProvider(
             @Value("${crs.security.jwt-secret}") String secret,
             @Value("${crs.security.jwt-expiration-ms}") long expirationMs) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalArgumentException(
+                    "JWT 密钥不能为空，请设置环境变量 JWT_SECRET（至少 32 字符）");
+        }
+        if (secret.length() < 32) {
+            throw new IllegalArgumentException(
+                    "JWT 密钥长度至少 32 字符，当前长度: " + secret.length());
+        }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationMs = expirationMs;
     }

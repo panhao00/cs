@@ -1,6 +1,6 @@
 <template>
   <div class="user-mgmt">
-    <AppLayout title="用户维护 (Maintain Student / Professor)">
+    <AppLayout title="用户管理">
       <template #actions>
         <el-tag type="primary" effect="dark" size="small">
           <el-icon><User /></el-icon>
@@ -92,12 +92,22 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="280" fixed="right">
+          <el-table-column label="操作" :min-width="280" fixed="right">
             <template #default="{ row }">
               <div class="action-btns">
+                <el-button size="small" @click="viewDetail(row)">
+                  查看
+                </el-button>
                 <el-button size="small" @click="openEdit(row)">
                   <el-icon><Edit /></el-icon>
                   编辑
+                </el-button>
+                <el-button
+                  size="small"
+                  type="warning"
+                  @click="handleResetPassword(row)"
+                >
+                  重置密码
                 </el-button>
                 <el-button
                   size="small"
@@ -194,6 +204,34 @@
         <el-button type="primary" :loading="saving" @click="save">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- User Detail Dialog -->
+    <el-dialog v-model="showDetail" title="用户详情" width="520px" class="user-dialog">
+      <el-descriptions v-if="detailUser" :column="2" border>
+        <el-descriptions-item label="姓名">{{ detailUser.name }}</el-descriptions-item>
+        <el-descriptions-item label="用户名">{{ detailUser.username }}</el-descriptions-item>
+        <el-descriptions-item label="角色">
+          <el-tag :type="roleTagType(detailUser.role)" size="small">
+            {{ roleLabel(detailUser.role) }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="院系">{{ detailUser.department || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag
+            :type="detailUser.status === 'ACTIVE' ? 'success' : 'info'"
+            size="small"
+          >
+            {{ detailUser.status === 'ACTIVE' ? '活跃' : '停用' }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="SSN">{{ detailUser.ssn || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="出生日期">{{ detailUser.dob || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="毕业日期">{{ detailUser.graduationDate || '-' }}</el-descriptions-item>
+      </el-descriptions>
+      <template #footer>
+        <el-button @click="showDetail = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -213,6 +251,8 @@ const dialogVisible = ref(false)
 const isEdit = ref(false)
 const form = ref({})
 const formRef = ref(null)
+const showDetail = ref(false)
+const detailUser = ref(null)
 
 const rules = computed(() => ({
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -324,12 +364,43 @@ async function confirmDelete(row) {
   }
 }
 
+async function handleResetPassword(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要重置用户 "${row.name}" 的密码吗？`,
+      '重置密码',
+      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+    )
+    const { value } = await ElMessageBox.prompt('请输入新密码（至少6位）', '重置密码', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputType: 'password',
+      inputValidator: (val) => val && val.length >= 6 ? true : '密码至少6位',
+      type: 'info'
+    })
+    await userApi.resetPassword(row.id, value)
+    ElMessage.success('密码已重置')
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('重置失败: ' + (e.response?.data?.message || e.message))
+  }
+}
+
 function roleLabel(role) {
   return { STUDENT: '学生', PROFESSOR: '教授', REGISTRAR: '注册主任' }[role] || role
 }
 
 function roleTagType(role) {
   return { STUDENT: 'warning', PROFESSOR: 'success', REGISTRAR: 'primary' }[role] || 'info'
+}
+
+async function viewDetail(user) {
+  try {
+    const res = await userApi.getById(user.id)
+    detailUser.value = res.data
+    showDetail.value = true
+  } catch (e) {
+    ElMessage.error('加载用户详情失败')
+  }
 }
 
 onMounted(loadUsers)
@@ -397,7 +468,9 @@ onMounted(loadUsers)
 
 .action-btns {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
+  white-space: nowrap;
 }
 
 .empty-icon {
@@ -407,5 +480,44 @@ onMounted(loadUsers)
 
 .user-dialog :deep(.el-dialog__body) {
   padding-top: var(--space-4);
+}
+
+/* --- Mobile Responsive --- */
+@media (max-width: 768px) {
+  /* Filter row stacks */
+  .filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-role {
+    width: 100%;
+  }
+
+  .filter-search {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .filter-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  /* Table scrollable */
+  .table-card {
+    overflow-x: auto;
+  }
+
+  .refined-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Dialog full width on mobile */
+  .user-dialog {
+    width: 95vw !important;
+  }
 }
 </style>

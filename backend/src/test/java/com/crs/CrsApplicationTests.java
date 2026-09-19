@@ -8,7 +8,7 @@ import org.springframework.test.context.ActiveProfiles;
  * 应用上下文加载测试。
  */
 @SpringBootTest
-@ActiveProfiles("dev")
+@ActiveProfiles("test")
 class CrsApplicationTests {
 
     @Test

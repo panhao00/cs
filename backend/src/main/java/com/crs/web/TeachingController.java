@@ -4,6 +4,7 @@ import com.crs.service.TeachingService;
 import com.crs.web.dto.SelectTeachingRequest;
 import com.crs.web.dto.TeachingOfferingDTO;
 import com.crs.web.dto.TeachingSelectionResult;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -54,7 +55,7 @@ public class TeachingController {
     @PostMapping("/select")
     public ResponseEntity<TeachingSelectionResult> selectCoursesToTeach(
             @RequestParam(required = false) String semester,
-            @RequestBody SelectTeachingRequest request) {
+            @Valid @RequestBody SelectTeachingRequest request) {
         Long profId = roleGuard.requireProfessor();
         String sem = semester != null ? semester : CURRENT_SEMESTER;
         return ResponseEntity.ok(

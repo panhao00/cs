@@ -265,4 +265,46 @@ function formatTime(dateStr) {
   color: var(--color-text-muted);
   opacity: 0.4;
 }
+
+/* --- Mobile Responsive --- */
+@media (max-width: 768px) {
+  .notification-list {
+    max-width: 100%;
+  }
+
+  .notification-body {
+    padding: 12px 14px;
+  }
+
+  .notification-header {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .notification-title {
+    font-size: 14px;
+  }
+
+  .notification-content {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .notification-card {
+    margin-bottom: 6px;
+  }
+
+  .notification-body {
+    padding: 10px 12px;
+  }
+
+  .notification-title {
+    font-size: 13px;
+  }
+
+  .type-tag {
+    font-size: 11px;
+  }
+}
 </style>

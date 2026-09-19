@@ -27,6 +27,9 @@ public class SystemSetting {
     @Column(nullable = false, length = 500)
     private String settingValue;
 
+    @Column(length = 500)
+    private String description;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

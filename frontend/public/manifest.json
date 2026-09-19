@@ -1,0 +1,53 @@
+{
+  "name": "Wylie College 课程注册系统",
+  "short_name": "CRS",
+  "description": "Wylie College 课程注册系统 - 在线选课、成绩查询、课表管理",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1a73e8",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "zh-CN",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "选课",
+      "short_name": "选课",
+      "url": "/register",
+      "description": "快速进入选课页面"
+    },
+    {
+      "name": "成绩单",
+      "short_name": "成绩单",
+      "url": "/report-card",
+      "description": "查看我的成绩单"
+    },
+    {
+      "name": "通知中心",
+      "short_name": "通知",
+      "url": "/notifications",
+      "description": "查看系统通知"
+    }
+  ]
+}

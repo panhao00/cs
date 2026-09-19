@@ -1,5 +1,5 @@
 -- CRS 数据库 Schema
--- 兼容 H2(MySQL 模式) 与 MySQL 8.x
+-- MySQL 8.x
 -- 参考 AI 生成,经人工核验与调整
 
 -- 用户表(单表存储三类角色: STUDENT / PROFESSOR / REGISTRAR)
@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS app_user (
     status       VARCHAR(20)  DEFAULT 'ACTIVE',  -- ACTIVE, INACTIVE
     graduation_date DATE,                         -- 仅学生
     department   VARCHAR(50),                     -- 仅教授
+    failed_login_attempts INT DEFAULT 0,         -- 连续失败登录次数
+    locked_until  TIMESTAMP NULL,                -- 账户锁定截止时间
     created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
@@ -54,7 +56,8 @@ CREATE TABLE IF NOT EXISTS schedule (
     state        VARCHAR(20)  DEFAULT 'DRAFT',  -- DRAFT, COMMITTED, CLOSED
     created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (student_id) REFERENCES app_user(id)
+    FOREIGN KEY (student_id) REFERENCES app_user(id),
+    UNIQUE(student_id, semester)
 );
 
 -- 课表项(课表中的每一门课)
@@ -94,15 +97,21 @@ CREATE TABLE IF NOT EXISTS grade (
 
 -- 账单(关闭注册后生成)
 CREATE TABLE IF NOT EXISTS bill (
-    bill_id     BIGINT AUTO_INCREMENT PRIMARY KEY,
-    student_id  BIGINT        NOT NULL,
-    semester    VARCHAR(20)   NOT NULL,
-    amount      DECIMAL(10,2) NOT NULL,
-    status      VARCHAR(20)   DEFAULT 'PENDING',  -- PENDING, SENT, FAILED
-    sent_at     TIMESTAMP,
-    created_at  TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+    bill_id       BIGINT AUTO_INCREMENT PRIMARY KEY,
+    student_id    BIGINT        NOT NULL,
+    semester      VARCHAR(20)   NOT NULL,
+    amount        DECIMAL(10,2) NOT NULL,
+    status        VARCHAR(20)   DEFAULT 'PENDING',  -- PENDING, SENT, FAILED
+    sent_at       TIMESTAMP,
+    retry_count   INT           DEFAULT 0,
+    max_retries   INT           DEFAULT 3,
+    next_retry_at TIMESTAMP,
+    last_error    VARCHAR(1000),
+    created_at    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES app_user(id)
 );
+-- 补充遗漏的列(已有表不会重建,需手动 ALTER; continue-on-error 忽略已存在的情况)
+ALTER TABLE bill ADD COLUMN last_error VARCHAR(1000);
 
 -- 审计日志(记录敏感操作: 登录、成绩查看等)
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -119,7 +128,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE TABLE IF NOT EXISTS notification (
     id          BIGINT AUTO_INCREMENT PRIMARY KEY,
     student_id  BIGINT       NOT NULL,
-    type        VARCHAR(30)  NOT NULL,           -- OFFERING_CANCELLED, ENROLLMENT_SUCCESS, ENROLLMENT_FAILED, REGISTRATION_CLOSED, GRADE_POSTED, SYSTEM
+    type        VARCHAR(30)  NOT NULL,           -- OFFERING_CANCELLED, ENROLLMENT_SUCCESS, ENROLLMENT_FAILED, REGISTRATION_CLOSED, GRADE_POSTED, CAPACITY_WARNING, SYSTEM
     title       VARCHAR(200) NOT NULL,
     content     TEXT,
     offering_id BIGINT,
@@ -134,21 +143,49 @@ CREATE TABLE IF NOT EXISTS system_setting (
     id            BIGINT AUTO_INCREMENT PRIMARY KEY,
     setting_key   VARCHAR(100) NOT NULL UNIQUE,
     setting_value VARCHAR(500) NOT NULL,
+    description   VARCHAR(500),
     created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 候补名单(学生在课程满员时排队等待递补)
+CREATE TABLE IF NOT EXISTS waitlist (
+    id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+    offering_id  BIGINT       NOT NULL,
+    student_id   BIGINT       NOT NULL,
+    position     INT          NOT NULL,
+    status       VARCHAR(20)  DEFAULT 'WAITING',  -- WAITING, ENROLLED, CANCELLED
+    created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (offering_id) REFERENCES course_offering(offering_id),
+    FOREIGN KEY (student_id) REFERENCES app_user(id),
+    UNIQUE(offering_id, student_id)
+);
+
+-- 课程评价(学生对某开设的评分+评论)
+CREATE TABLE IF NOT EXISTS review (
+    id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+    offering_id  BIGINT       NOT NULL,
+    student_id   BIGINT       NOT NULL,
+    rating       INT          NOT NULL,           -- 1-5
+    comment      VARCHAR(500),
+    created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (offering_id) REFERENCES course_offering(offering_id),
+    FOREIGN KEY (student_id) REFERENCES app_user(id),
+    UNIQUE(offering_id, student_id)
+);
+
 -- ==================== 性能索引 ====================
--- Note: H2 supports CREATE INDEX IF NOT EXISTS; MySQL does not.
--- For MySQL production, index creation errors are expected on restart (indexes already exist).
--- Use spring.sql.init.continue-on-error=true in prod profile.
-CREATE INDEX IF NOT EXISTS idx_offering_semester_status ON course_offering(semester, status);
-CREATE INDEX IF NOT EXISTS idx_offering_professor ON course_offering(professor_id);
-CREATE INDEX IF NOT EXISTS idx_schedule_student_semester ON schedule(student_id, semester);
-CREATE INDEX IF NOT EXISTS idx_schedule_item_schedule ON schedule_item(schedule_id);
-CREATE INDEX IF NOT EXISTS idx_enrollment_offering ON enrollment(offering_id, status);
-CREATE INDEX IF NOT EXISTS idx_enrollment_student ON enrollment(student_id, status);
-CREATE INDEX IF NOT EXISTS idx_grade_student ON grade(student_id);
-CREATE INDEX IF NOT EXISTS idx_bill_student ON bill(student_id);
-CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_id);
-CREATE INDEX IF NOT EXISTS idx_notification_student ON notification(student_id, is_read);
+-- MySQL 不支持 CREATE INDEX IF NOT EXISTS, 配置 continue-on-error=true 忽略重复错误
+CREATE INDEX idx_offering_semester_status ON course_offering(semester, status);
+CREATE INDEX idx_offering_professor ON course_offering(professor_id);
+CREATE INDEX idx_schedule_student_semester ON schedule(student_id, semester);
+CREATE INDEX idx_schedule_item_schedule ON schedule_item(schedule_id);
+CREATE INDEX idx_enrollment_offering ON enrollment(offering_id, status);
+CREATE INDEX idx_enrollment_student ON enrollment(student_id, status);
+CREATE INDEX idx_grade_student ON grade(student_id);
+CREATE INDEX idx_bill_student ON bill(student_id);
+CREATE INDEX idx_audit_log_actor ON audit_log(actor_id);
+CREATE INDEX idx_notification_student ON notification(student_id, is_read);
+CREATE INDEX idx_waitlist_offering ON waitlist(offering_id, status);
+CREATE INDEX idx_waitlist_student ON waitlist(student_id, status);
+CREATE INDEX idx_review_offering ON review(offering_id);

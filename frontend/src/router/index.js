@@ -63,6 +63,60 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/waitlist',
+    name: 'Waitlist',
+    component: () => import('../views/Waitlist.vue'),
+    meta: { requiresAuth: true, roles: ['STUDENT'] }
+  },
+  {
+    path: '/settings',
+    name: 'SystemSettings',
+    component: () => import('../views/SystemSettings.vue'),
+    meta: { requiresAuth: true, roles: ['REGISTRAR'] }
+  },
+  {
+    path: '/grade-trend',
+    name: 'GradeTrend',
+    component: () => import('../views/GradeTrend.vue'),
+    meta: { requiresAuth: true, roles: ['STUDENT'] }
+  },
+  {
+    path: '/reviews/:offeringId',
+    name: 'CourseReviews',
+    component: () => import('../views/CourseReviews.vue'),
+    meta: { requiresAuth: true, roles: ['STUDENT'] }
+  },
+  {
+    path: '/recommendations',
+    name: 'CourseRecommendation',
+    component: () => import('../views/CourseRecommendation.vue'),
+    meta: { requiresAuth: true, roles: ['STUDENT'] }
+  },
+  {
+    path: '/change-password',
+    name: 'ChangePassword',
+    component: () => import('../views/ChangePassword.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/audit-logs',
+    name: 'AuditLogs',
+    component: () => import('../views/AuditLogs.vue'),
+    meta: { requiresAuth: true, roles: ['REGISTRAR'] }
+  },
+  {
+    path: '/enrollment-dashboard',
+    name: 'EnrollmentDashboard',
+    component: () => import('../views/EnrollmentDashboard.vue'),
+    meta: { requiresAuth: true, roles: ['REGISTRAR'] }
+  },
+  {
+    path: '/my-reviews',
+    name: 'MyReviews',
+    component: () => import('../views/MyReviews.vue'),
+    meta: { requiresAuth: true, roles: ['STUDENT'] }
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/'
   }

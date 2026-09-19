@@ -51,8 +51,6 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>No Professor for the Course Offering: 无教授 → 该开设直接取消,从相关课表移除。</li>
  *   <li>Billing System Unavailable: 按设定周期重发事务,直至 Billing System 恢复可用。</li>
  * </ul>
- * <p>
- * 参考 AI 生成,经人工核验与调整。Leveling 算法与二次取消逻辑由人工设计。
  */
 @Slf4j
 @Service
@@ -66,6 +64,8 @@ public class RegistrationService {
     private final NotificationService notificationService;
     private final UserRepository userRepository;
     private final RegistrationPhase registrationPhase;
+    private final com.crs.common.SemesterConfig semesterConfig;
+    private final BillingAsyncService billingAsyncService;
 
     @Value("${crs.rules.offering-min-students:3}")
     private int minStudents;
@@ -76,14 +76,25 @@ public class RegistrationService {
     @Value("${crs.rules.max-primary:4}")
     private int maxPrimary;
 
-    @Value("${crs.billing.retry-count:3}")
-    private int billingRetryCount;
+    /**
+     * 步骤 2 的中间结果: commit/cancel 决策产出的状态汇总。
+     */
+    private record CommitOrCancelResult(
+            List<CloseRegistrationResult.OfferingStatus> offeringStatuses,
+            List<Enrollment> billableEnrollments,
+            int committedCount,
+            int cancelledForNoProfessor,
+            int cancelledForUnderMin
+    ) {}
 
-    @Value("${crs.billing.retry-delay-ms:1000}")
-    private long billingRetryDelayMs;
-
-    /** 当前学期 */
-    private static final String CURRENT_SEMESTER = "2026-FALL";
+    /**
+     * 步骤 4 的中间结果: 二次检查产出的最终状态汇总。
+     */
+    private record VerifyFinalResult(
+            List<CloseRegistrationResult.OfferingStatus> finalStatuses,
+            int committedCount,
+            int cancelledCount
+    ) {}
 
     /**
      * 获取当前注册阶段状态。
@@ -104,15 +115,79 @@ public class RegistrationService {
      */
     @Transactional
     public CloseRegistrationResult closeRegistration(String semester) {
-        // ========== 步骤 1: 校验注册状态 ==========
+        // 步骤 1: 校验注册状态
+        validateRegistrationState();
+
+        log.info("===== 注册主任发起关闭注册: semester={} =====", semester);
+
+        // 步骤 2: 检查教授指派 + 最小人数,决定 commit / cancel
+        CommitOrCancelResult step2 = commitOrCancelEnrollments(semester);
+
+        // 步骤 3: Leveling - 为学生课表补充备选课程
+        int leveledCount = performLeveling(semester, step2.billableEnrollments());
+
+        // 步骤 4: 二次检查 - 取消仍不足最小人数的开设
+        VerifyFinalResult step4 = verifyFinalState(
+                semester, step2.offeringStatuses(), step2.billableEnrollments());
+
+        // 步骤 5: 通知 Billing 系统 + 通知学生
+        boolean billingNotificationSent =
+                notifyBillingAndStudents(step2.billableEnrollments(), semester);
+
+        // 构建最终结果(总开设数 = finalStatuses 条目数,与原始 OPEN 列表一一对应)
+        int totalOfferings = step4.finalStatuses().size();
+
+        String message = String.format(
+                "注册已关闭。共 %d 门开设: %d 门已 COMMITTED, %d 门已 CANCELLED。"
+                        + "Leveling 提升 %d 个备选为主选。",
+                totalOfferings, step4.committedCount(), step4.cancelledCount(), leveledCount);
+
+        if (!billingNotificationSent) {
+            message += " 警告: 通知 Billing 系统失败,请手动处理。";
+        }
+
+        log.info("===== 关闭注册完成: {} =====", message);
+
+        return new CloseRegistrationResult(
+                true,
+                semester,
+                message,
+                totalOfferings,
+                step4.committedCount(),
+                step4.cancelledCount(),
+                step4.finalStatuses(),
+                billingNotificationSent
+        );
+    }
+
+    // ==================== 步骤方法(拆分自 closeRegistration) ====================
+
+    /**
+     * 步骤 1: 校验注册状态。
+     * <p>
+     * 检查当前注册阶段是否允许关闭,若已关闭则抛出冲突异常。
+     * 校验通过后立即将阶段设置为 "closed"。
+     *
+     * @throws ApiException 如果注册已关闭
+     */
+    private void validateRegistrationState() {
         if ("closed".equalsIgnoreCase(registrationPhase.getPhase())) {
             throw ApiException.conflict("注册已关闭,不能重复关闭");
         }
-
-        log.info("===== 注册主任发起关闭注册: semester={} =====", semester);
         registrationPhase.setPhase("closed");
+    }
 
-        // ========== 步骤 2: 检查教授指派 + 最小人数,决定 commit / cancel ==========
+    /**
+     * 步骤 2: 遍历所有 OPEN 状态的开设,根据教授指派和最小人数决定 commit/cancel。
+     * <p>
+     * - 无教授指派 → 直接 CANCELLED,从课表移除
+     * - 有教授且人数 ≥ minStudents → COMMITTED
+     * - 人数不足 → 暂不处理,等待 leveling 后二次检查
+     *
+     * @param semester 当前学期
+     * @return 步骤 2 的中间结果(状态列表、计费名单、计数器)
+     */
+    private CommitOrCancelResult commitOrCancelEnrollments(String semester) {
         List<CourseOffering> allOfferings = offeringRepository
                 .findBySemesterAndStatus(semester, OfferingStatus.OPEN);
 
@@ -141,7 +216,8 @@ public class RegistrationService {
                 cancelledForNoProfessor++;
                 message = "无教授指派,已 CANCELLED 并从所有课表移除";
                 committed = false;
-                log.warn("开设 {} ({}) 无教授指派,已取消", offering.getId(), offering.getCourseId());
+                log.warn("开设 {} ({}) 无教授指派,已取消",
+                        offering.getId(), offering.getCourseId());
             } else if (meetsMin) {
                 // 满足条件: 有教授 + 人数 ≥ 3 → COMMITTED
                 offering.setStatus(OfferingStatus.COMMITTED);
@@ -156,7 +232,6 @@ public class RegistrationService {
                         enrolledCount, minStudents);
             } else {
                 // 不满足最小人数 → 暂时不处理(leveling 可能补充人数)
-                // 先标记为待定,leveling 后再检查
                 message = String.format("人数不足 (%d/%d),待 leveling 后重新检查",
                         enrolledCount, minStudents);
                 committed = false;
@@ -175,7 +250,23 @@ public class RegistrationService {
             ));
         }
 
-        // ========== 步骤 3: Leveling - 为学生课表补充备选课程 ==========
+        return new CommitOrCancelResult(
+                offeringStatuses, billableEnrollments,
+                committedCount, cancelledForNoProfessor, cancelledForUnderMin);
+    }
+
+    /**
+     * 步骤 3: Leveling - 为学生课表补充备选课程。
+     * <p>
+     * 遍历所有 DRAFT 状态的课表,若主选课数未满上限(maxPrimary),
+     * 按备选列表顺序尝试将第一个可用备选开设提升为主选并注册。
+     * 同时将新增注册加入 billableEnrollments。
+     *
+     * @param semester           当前学期
+     * @param billableEnrollments 需计费的选课记录列表(会被修改)
+     * @return 被提升的备选数量
+     */
+    private int performLeveling(String semester, List<Enrollment> billableEnrollments) {
         log.info("开始 Leveling: 为学生课表补充备选课程");
         List<Schedule> allSchedules = scheduleRepository.findBySemesterAndState(
                 semester, ScheduleState.DRAFT);
@@ -246,12 +337,28 @@ public class RegistrationService {
             }
         }
         log.info("Leveling 完成: {} 个备选被提升为主选", leveledCount);
+        return leveledCount;
+    }
 
-        // ========== 步骤 4: 二次检查 - 取消仍不足最小人数的开设 ==========
+    /**
+     * 步骤 4: 二次检查 - 取消仍不足最小人数的开设。
+     * <p>
+     * 重新扫描所有仍为 OPEN 的开设,若经过 leveling 后人数仍不足则 CANCELLED,
+     * 否则 COMMITTED。同时更新 offeringStatuses 和 billableEnrollments。
+     *
+     * @param semester           当前学期
+     * @param offeringStatuses   步骤 2 产出的状态列表(会被修改)
+     * @param billableEnrollments 需计费的选课记录列表(会被修改)
+     * @return 步骤 4 的中间结果(最终状态列表、committed/cancelled 计数)
+     */
+    private VerifyFinalResult verifyFinalState(
+            String semester,
+            List<CloseRegistrationResult.OfferingStatus> offeringStatuses,
+            List<Enrollment> billableEnrollments) {
+
         log.info("二次检查: 取消仍不足最小人数的开设");
         List<CourseOffering> recheckOfferings = offeringRepository
                 .findBySemesterAndStatus(semester, OfferingStatus.OPEN);
-        int finalCancelledCount = 0;
 
         for (CourseOffering offering : recheckOfferings) {
             long enrolledCount = enrollmentRepository.countByOfferingIdAndStatus(
@@ -263,9 +370,8 @@ public class RegistrationService {
                 offeringRepository.save(offering);
                 cancelAllEnrollments(offering.getId());
                 removeFromAllSchedules(offering.getId());
-                finalCancelledCount++;
 
-                // Update the offeringStatus entry (records are immutable, so rebuild)
+                // 更新 offeringStatus 条目(records 不可变,需重建)
                 int idx = -1;
                 for (int i = 0; i < offeringStatuses.size(); i++) {
                     if (offeringStatuses.get(i).getOfferingId().equals(offering.getId())) {
@@ -275,12 +381,12 @@ public class RegistrationService {
                 }
                 if (idx >= 0) {
                     offeringStatuses.set(idx, new CloseRegistrationResult.OfferingStatus(
-                        offering.getId(),
-                        offering.getCourseId(),
-                        (int) enrolledCount,
-                        minStudents,
-                        false,
-                        "仍不足最小人数 (" + enrolledCount + "/" + minStudents + "),已 CANCELLED"
+                            offering.getId(),
+                            offering.getCourseId(),
+                            (int) enrolledCount,
+                            minStudents,
+                            false,
+                            "仍不足最小人数 (" + enrolledCount + "/" + minStudents + "),已 CANCELLED"
                     ));
                 }
 
@@ -303,14 +409,13 @@ public class RegistrationService {
                     }
                 }
 
-                // 更新 offeringStatus
                 log.info("二次检查: 开设 {} ({}) leveling 后满足条件 ({}/{}),已 COMMITTED",
                         offering.getId(), offering.getCourseId(),
                         enrolledCount, minStudents);
             }
         }
 
-        // 更新 offeringStatus 列表(反映最终状态)
+        // 重建最终 offeringStatuses(反映二次检查后的状态)
         List<CloseRegistrationResult.OfferingStatus> finalStatuses = offeringStatuses.stream()
                 .map(s -> {
                     CourseOffering o = offeringRepository.findById(s.getOfferingId()).orElse(null);
@@ -331,37 +436,28 @@ public class RegistrationService {
                 })
                 .toList();
 
-        // ========== 步骤 5: 通知 Billing 系统 ==========
-        boolean billingNotificationSent = notifyBillingSystem(billableEnrollments, semester);
-
-        // ========== 步骤 6: 通知所有学生注册已关闭 ==========
-        notifyAllStudentsRegistrationClosed(semester);
-
-        // 统计最终结果
-        committedCount = (int) finalStatuses.stream().filter(s -> s.isMeetsMinimum()).count();
+        int committedCount = (int) finalStatuses.stream()
+                .filter(CloseRegistrationResult.OfferingStatus::isMeetsMinimum).count();
         int cancelledCount = finalStatuses.size() - committedCount;
 
-        String message = String.format(
-                "注册已关闭。共 %d 门开设: %d 门已 COMMITTED, %d 门已 CANCELLED。"
-                        + "Leveling 提升 %d 个备选为主选。",
-                allOfferings.size(), committedCount, cancelledCount, leveledCount);
+        return new VerifyFinalResult(finalStatuses, committedCount, cancelledCount);
+    }
 
-        if (!billingNotificationSent) {
-            message += " 警告: 通知 Billing 系统失败,请手动处理。";
-        }
-
-        log.info("===== 关闭注册完成: {} =====", message);
-
-        return new CloseRegistrationResult(
-                true,
-                semester,
-                message,
-                allOfferings.size(),
-                committedCount,
-                cancelledCount,
-                finalStatuses,
-                billingNotificationSent
-        );
+    /**
+     * 步骤 5: 通知 Billing 系统和所有学生注册已关闭。
+     * <p>
+     * - 向 Billing 系统发送计费事务(异步+重试)
+     * - 通知所有本学期有选课记录的学生注册已关闭
+     *
+     * @param billableEnrollments 需计费的选课记录列表
+     * @param semester            当前学期
+     * @return true 如果 Billing 通知发送成功
+     */
+    private boolean notifyBillingAndStudents(
+            List<Enrollment> billableEnrollments, String semester) {
+        boolean billingNotificationSent = notifyBillingSystem(billableEnrollments, semester);
+        notifyAllStudentsRegistrationClosed(semester);
+        return billingNotificationSent;
     }
 
     /**
@@ -449,58 +545,18 @@ public class RegistrationService {
     }
 
     /**
-     * 通知 Billing 系统(模拟实现 + 重试机制)。
+     * 通知 Billing 系统(异步 + 重试机制)。
      * <p>
-     * 实际应通过 HTTP/RPC 调用 Billing 系统的接口,将成功开设的选课名单发送过去。
-     * 备选流 Billing System Down: 按设定周期重发事务,直至 Billing System 恢复可用。
-     * <p>
-     * 模拟实现中随机 30% 概率失败,用于测试重试逻辑。
+     * 使用 BillingAsyncService 异步执行,避免在 @Transactional 中阻塞。
      */
     private boolean notifyBillingSystem(List<Enrollment> enrollments, String semester) {
-        Random random = new Random();
-
-        for (int attempt = 1; attempt <= billingRetryCount; attempt++) {
-            try {
-                log.info("通知 Billing 系统: attempt={}/{}, semester={}, 共 {} 条选课记录",
-                        attempt, billingRetryCount, semester, enrollments.size());
-
-                // 按学生分组统计
-                Map<Long, Long> studentCourseCount = enrollments.stream()
-                        .collect(Collectors.groupingBy(
-                                Enrollment::getStudentId,
-                                Collectors.counting()));
-
-                log.info("Billing 通知: {} 名学生, 选课记录总计 {} 条",
-                        studentCourseCount.size(), enrollments.size());
-
-                // 模拟: 30% 概率随机失败,用于测试重试逻辑
-                // 实际应调用 BillingClient.notify(semester, enrollments)
-                if (random.nextInt(100) < 30) {
-                    throw new RuntimeException("Billing System 暂时不可用 (模拟失败)");
-                }
-
-                log.info("Billing 通知成功: attempt={}", attempt);
-                return true;
-
-            } catch (Exception e) {
-                log.warn("Billing 通知失败: attempt={}/{}, 错误: {}",
-                        attempt, billingRetryCount, e.getMessage());
-
-                if (attempt < billingRetryCount) {
-                    try {
-                        log.info("等待 {}ms 后重试...", billingRetryDelayMs);
-                        Thread.sleep(billingRetryDelayMs);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        log.error("重试等待被中断", ie);
-                        return false;
-                    }
-                }
-            }
+        try {
+            return billingAsyncService.notifyBillingSystemAsync(semester, enrollments)
+                    .get(30, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.error("Billing 通知异常: {}", e.getMessage());
+            return false;
         }
-
-        log.error("Billing 通知最终失败: 已重试 {} 次", billingRetryCount);
-        return false;
     }
 
     /** 通知所有本学期有选课记录的学生注册已关闭 */

@@ -2,6 +2,7 @@ package com.crs.security;
 
 import com.crs.domain.Role;
 import com.crs.domain.User;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import lombok.Getter;
@@ -20,6 +21,7 @@ public class CrsUserDetails implements UserDetails {
     private final String password;
     private final Role role;
     private final boolean active;
+    private final boolean locked;
 
     public CrsUserDetails(User user) {
         this.id = user.getId();
@@ -27,6 +29,7 @@ public class CrsUserDetails implements UserDetails {
         this.password = user.getPasswordHash();
         this.role = user.getRole();
         this.active = user.getStatus() == User.UserStatus.ACTIVE;
+        this.locked = user.isLocked();
     }
 
     @Override
@@ -51,7 +54,7 @@ public class CrsUserDetails implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return true;
+        return !locked;
     }
 
     @Override

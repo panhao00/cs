@@ -342,3 +342,119 @@ a:hover {
   opacity: 0;
   transform: translateY(-12px);
 }
+
+/* ============================================================
+   MOBILE RESPONSIVE UTILITIES
+   ============================================================ */
+
+/* Global: prevent horizontal overflow */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Table scroll wrapper - applied via utility class */
+.table-scroll-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ============================================================
+   Tablet Breakpoint (max-width: 768px)
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Element Plus Dialog - full width on mobile */
+  .el-dialog {
+    width: 92vw !important;
+    margin: 16px auto !important;
+  }
+
+  /* Element Plus Table - horizontal scroll */
+  .el-table {
+    width: 100% !important;
+  }
+
+  /* Element Plus Card - reduced padding */
+  .el-card__header {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .el-card__body {
+    padding: var(--space-4);
+  }
+
+  /* Element Plus Form items - full width inputs */
+  .el-form-item__content {
+    width: 100%;
+  }
+
+  .el-input,
+  .el-select,
+  .el-textarea {
+    width: 100% !important;
+  }
+
+  /* Element Plus Row/Col - stack on mobile */
+  .el-row .el-col {
+    display: block;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-bottom: var(--space-3);
+  }
+
+  /* Element Plus Pagination - center */
+  .el-pagination {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* Element Plus Descriptions - full width */
+  .el-descriptions {
+    width: 100%;
+  }
+
+  /* Element Plus Radio/Checkbox groups - wrap */
+  .el-radio-group,
+  .el-checkbox-group {
+    flex-wrap: wrap;
+  }
+
+  /* Element Plus Date Picker - full width */
+  .el-date-editor {
+    width: 100% !important;
+  }
+
+  /* Element Plus Message Box - mobile friendly */
+  .el-message-box {
+    width: 90vw !important;
+  }
+}
+
+/* ============================================================
+   Phone Breakpoint (max-width: 480px)
+   ============================================================ */
+@media (max-width: 480px) {
+  /* Typography scale down */
+  .el-card__header {
+    font-size: var(--font-size-sm);
+  }
+
+  /* Element Plus Tag - compact */
+  .el-tag {
+    font-size: var(--font-size-xs);
+  }
+
+  /* Element Plus Button - full width option */
+  .el-button--large {
+    height: 40px;
+    font-size: var(--font-size-base);
+  }
+
+  /* Element Plus Input - larger touch targets */
+  .el-input__wrapper {
+    min-height: 36px;
+  }
+}

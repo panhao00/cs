@@ -16,7 +16,11 @@ export const useAuthStore = defineStore('auth', () => {
   // Check token expiry on init
   if (token.value) {
     try {
-      const payload = JSON.parse(atob(token.value.split('.')[1]))
+      const parts = token.value.split('.')
+      if (parts.length !== 3) throw new Error('Invalid JWT format')
+      const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+      const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+      const payload = JSON.parse(atob(padded))
       if (payload.exp && payload.exp * 1000 < Date.now()) {
         // Token expired, clear it
         token.value = ''

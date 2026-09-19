@@ -27,4 +27,8 @@ public interface CourseOfferingRepository extends JpaRepository<CourseOffering, 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM CourseOffering o WHERE o.id = :id")
     Optional<CourseOffering> findByIdWithPessimisticLock(@Param("id") Long id);
+
+    /** 批量查询开设,减少 N+1 查询 */
+    @Query("SELECT o FROM CourseOffering o WHERE o.id IN :ids")
+    List<CourseOffering> findByIdIn(@Param("ids") List<Long> ids);
 }

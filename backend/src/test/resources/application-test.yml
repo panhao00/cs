@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+
+crs:
+  security:
+    jwt-secret: test-secret-key-for-unit-tests-must-be-at-least-32-characters
+    jwt-expiration-ms: 86400000
+  registration:
+    current-semester: 2026-FALL
+    current-phase: open
+  rules:
+    max-primary: 4
+    max-alternate: 2
+    offering-max-students: 10
+    offering-min-students: 3
+  billing:
+    retry-count: 3
+    retry-delay-ms: 1000
