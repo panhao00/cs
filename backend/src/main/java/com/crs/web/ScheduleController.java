@@ -1,9 +1,12 @@
 package com.crs.web;
 
+import com.crs.service.AcademicSummaryService;
 import com.crs.service.ScheduleService;
+import com.crs.web.dto.AcademicSummaryDTO;
 import com.crs.web.dto.ScheduleResponse;
 import com.crs.web.dto.SelectOfferingsRequest;
 import com.crs.web.dto.SubmitResult;
+import jakarta.validation.Valid;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
  * - POST   /schedules/save             保存课表(Save a Schedule 备选流)
  * - POST   /schedules/submit           提交课表(Submit Schedule,含校验)
  * - DELETE /schedules                   删除课表(Delete a Schedule)
+ * - GET    /schedules/academic-summary   获取学生学业摘要(GPA/学分/课程历史)
  * <p>
  * 安全: 所有端点强制 STUDENT 角色,且只能操作自己的课表(水平越权防护)。
  */
@@ -39,6 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ScheduleController {
 
     private final ScheduleService scheduleService;
+    private final AcademicSummaryService academicSummaryService;
     private final RoleGuard roleGuard;
 
     /** 当前学期(简化: 配置项,实际可从注册周期表查询) */
@@ -74,7 +79,7 @@ public class ScheduleController {
     @PostMapping("/offerings")
     public ResponseEntity<ScheduleResponse> selectOfferings(
             @RequestParam(required = false) String semester,
-            @RequestBody SelectOfferingsRequest request) {
+            @Valid @RequestBody SelectOfferingsRequest request) {
         Long userId = roleGuard.requireStudent();
         String sem = semester != null ? semester : CURRENT_SEMESTER;
         return ResponseEntity.ok(
@@ -130,6 +135,22 @@ public class ScheduleController {
         String sem = semester != null ? semester : CURRENT_SEMESTER;
         scheduleService.deleteSchedule(userId, sem);
         return ResponseEntity.ok(Map.of("message", "课表已删除"));
+    }
+
+    /**
+     * 获取学生学业摘要: 累计 GPA、学分统计和按学期分组的课程历史。
+     * <p>
+     * 返回内容:
+     * - cumulativeGpa: 累计 GPA(所有有成绩学期的加权平均)
+     * - totalCreditsEarned: 已获得学分(成绩 A/B/C/D)
+     * - totalCreditsAttempted: 已修读学分(含 F/I)
+     * - currentEnrolledCredits: 当前学期选课学分
+     * - semesterHistory: 按学期分组的课程历史(逆序,最新学期在前)
+     */
+    @GetMapping("/academic-summary")
+    public ResponseEntity<AcademicSummaryDTO> getAcademicSummary() {
+        Long studentId = roleGuard.requireStudent();
+        return ResponseEntity.ok(academicSummaryService.getSummary(studentId));
     }
 
 }

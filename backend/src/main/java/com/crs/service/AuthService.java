@@ -8,8 +8,6 @@ import com.crs.security.JwtTokenProvider;
 import com.crs.web.dto.LoginRequest;
 import com.crs.web.dto.LoginResponse;
 import com.crs.web.dto.RegisterRequest;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -40,17 +38,11 @@ public class AuthService {
     private final AuditService auditService;
     private final PasswordEncoder passwordEncoder;
 
-    /** 登录失败追踪: username -> 连续失败次数 */
-    private final ConcurrentHashMap<String, AtomicInteger> loginAttempts = new ConcurrentHashMap<>();
-
     /** 连续失败上限 */
     private static final int MAX_ATTEMPTS = 5;
 
     /** 锁定时长(毫秒): 15分钟 */
     private static final long LOCK_DURATION_MS = 15 * 60 * 1000;
-
-    /** 账户锁定时间: username -> 锁定截止时间戳 */
-    private final ConcurrentHashMap<String, Long> lockedUntil = new ConcurrentHashMap<>();
 
     /**
      * 登录。
@@ -62,17 +54,22 @@ public class AuthService {
     public LoginResponse login(LoginRequest request) {
         String username = request.getUsername();
 
-        // 检查账户是否被锁定
-        Long lockExpiry = lockedUntil.get(username);
-        if (lockExpiry != null && System.currentTimeMillis() < lockExpiry) {
-            long remainingMinutes = (lockExpiry - System.currentTimeMillis()) / 60_000 + 1;
+        // 查找用户并检查账户锁定状态
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new BadCredentialsException("用户名或密码错误"));
+
+        if (user.isLocked()) {
+            long remainingMinutes = java.time.Duration.between(
+                    java.time.LocalDateTime.now(), user.getLockedUntil()).toMinutes() + 1;
             log.warn("账户 {} 已被锁定,剩余 {} 分钟", username, remainingMinutes);
             throw new LockedException("账户已锁定,请 " + remainingMinutes + " 分钟后重试");
         }
-        // 锁定已过期,清除
-        if (lockExpiry != null && System.currentTimeMillis() >= lockExpiry) {
-            lockedUntil.remove(username);
-            loginAttempts.remove(username);
+
+        // 锁定已过期时清除锁定状态
+        if (user.getLockedUntil() != null
+                && java.time.LocalDateTime.now().isAfter(user.getLockedUntil())) {
+            user.clearLoginAttempts();
+            userRepository.save(user);
         }
 
         Authentication authentication;
@@ -83,30 +80,30 @@ public class AuthService {
                             request.getPassword()));
         } catch (Exception e) {
             // 记录失败次数
-            AtomicInteger attempts = loginAttempts.computeIfAbsent(username, k -> new AtomicInteger(0));
-            int currentAttempts = attempts.incrementAndGet();
+            user.recordFailedAttempt(MAX_ATTEMPTS, LOCK_DURATION_MS);
+            userRepository.save(user);
 
             auditService.recordLoginFailed(username, e.getMessage());
 
-            if (currentAttempts >= MAX_ATTEMPTS) {
-                lockedUntil.put(username, System.currentTimeMillis() + LOCK_DURATION_MS);
-                log.warn("账户 {} 连续失败 {} 次,已锁定 15 分钟", username, currentAttempts);
+            if (user.isLocked()) {
+                log.warn("账户 {} 连续失败 {} 次,已锁定 15 分钟", username, user.getFailedLoginAttempts());
                 throw new LockedException("连续失败次数过多,账户已锁定 15 分钟");
             }
 
-            log.warn("登录失败: username={}, 失败次数={}/{}", username, currentAttempts, MAX_ATTEMPTS);
-            throw new BadCredentialsException("用户名或密码错误(剩余 " + (MAX_ATTEMPTS - currentAttempts) + " 次机会)");
+            log.warn("登录失败: username={}, 失败次数={}/{}", username,
+                    user.getFailedLoginAttempts(), MAX_ATTEMPTS);
+            throw new BadCredentialsException("用户名或密码错误(剩余 "
+                    + (MAX_ATTEMPTS - user.getFailedLoginAttempts()) + " 次机会)");
         }
 
         // 登录成功: 清除失败计数
-        loginAttempts.remove(username);
-        lockedUntil.remove(username);
+        user.clearLoginAttempts();
+        userRepository.save(user);
 
         var principal = (com.crs.security.CrsUserDetails) authentication.getPrincipal();
         Long userId = principal.getId();
         Role role = principal.getRole();
 
-        User user = userRepository.findById(userId).orElseThrow();
         String token = tokenProvider.generate(userId, user.getUsername(), role);
         long expiresAt = System.currentTimeMillis() + tokenProvider.getExpirationMs();
 
@@ -126,9 +123,7 @@ public class AuthService {
      * 自助注册。
      * <p>
      * 学生/教授可自行注册账号。
-     * 校验: 用户名唯一、密码长度 >= 6、角色合法性。
-     * <p>
-     * 参考 AI 生成,经人工核验。
+     * 校验: 用户名唯一、密码长度 >= 6、角色合法性
      */
     @Transactional
     public LoginResponse register(RegisterRequest request) {
@@ -148,6 +143,11 @@ public class AuthService {
             throw ApiException.badRequest("教授角色必须填写所属院系");
         }
 
+        // 密码强度校验
+        if (request.getPassword() == null || request.getPassword().length() < 6) {
+            throw ApiException.badRequest("密码长度至少 6 位");
+        }
+
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
@@ -158,7 +158,7 @@ public class AuthService {
         userRepository.save(user);
 
         log.info("新用户注册: username={}, role={}", user.getUsername(), user.getRole());
-        auditService.recordLoginSuccess(user.getId(), user.getUsername());
+        auditService.recordRegister(user.getId(), user.getUsername());
 
         // 注册成功后直接返回 JWT(自动登录)
         String token = tokenProvider.generate(user.getId(), user.getUsername(), user.getRole());
@@ -172,5 +172,36 @@ public class AuthService {
                 user.getName(),
                 user.getRole(),
                 expiresAt);
+    }
+
+    /**
+     * 修改密码。
+     * <p>
+     * 已登录用户修改密码,需验证旧密码。
+     *
+     * @param userId      当前用户 ID
+     * @param oldPassword 旧密码
+     * @param newPassword 新密码
+     */
+    @Transactional
+    public void changePassword(Long userId, String oldPassword, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> ApiException.notFound("用户不存在"));
+
+        // 验证旧密码
+        if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
+            throw ApiException.badRequest("原密码错误");
+        }
+
+        // 密码强度校验
+        if (newPassword == null || newPassword.length() < 6) {
+            throw ApiException.badRequest("新密码长度至少 6 位");
+        }
+
+        // 编码新密码并保存
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        log.info("用户修改密码成功: userId={}, username={}", userId, user.getUsername());
     }
 }

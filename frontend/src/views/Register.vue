@@ -17,11 +17,11 @@
           <span class="cap-icon">&#9960;</span>
         </div>
         <h1 class="brand-name">WYLIE COLLEGE</h1>
-        <p class="brand-subtitle">Course Registration System</p>
+        <p class="brand-subtitle">课程注册系统</p>
       </div>
 
-      <h2 class="form-title">Create Account</h2>
-      <p class="form-desc">Register for a new account</p>
+      <h2 class="form-title">创建账号</h2>
+      <p class="form-desc">注册新账号</p>
 
       <el-form
         ref="formRef"
@@ -34,11 +34,11 @@
           <el-radio-group v-model="form.role" class="role-group">
             <el-radio-button value="STUDENT">
               <el-icon><Reading /></el-icon>
-              Student
+              学生
             </el-radio-button>
             <el-radio-button value="PROFESSOR">
               <el-icon><UserFilled /></el-icon>
-              Professor
+              教授
             </el-radio-button>
           </el-radio-group>
         </el-form-item>
@@ -47,7 +47,7 @@
           <el-input
             v-model="form.username"
             size="large"
-            placeholder="Username (3-50 characters)"
+            placeholder="用户名（3-50个字符）"
             :prefix-icon="User"
           />
         </el-form-item>
@@ -57,7 +57,7 @@
             v-model="form.password"
             size="large"
             type="password"
-            placeholder="Password (min 6 characters)"
+            placeholder="密码（至少6位）"
             :prefix-icon="Lock"
             show-password
           />
@@ -67,7 +67,7 @@
           <el-input
             v-model="form.name"
             size="large"
-            placeholder="Full Name"
+            placeholder="姓名"
           />
         </el-form-item>
 
@@ -75,7 +75,7 @@
           <el-input
             v-model="form.department"
             size="large"
-            placeholder="Department (e.g. Computer Science)"
+            placeholder="院系（如：计算机系）"
           />
         </el-form-item>
 
@@ -87,7 +87,7 @@
             :loading="loading"
             @click="handleRegister"
           >
-            Create Account
+            创建账号
           </el-button>
         </el-form-item>
       </el-form>
@@ -101,8 +101,8 @@
       />
 
       <div class="auth-link">
-        Already have an account?
-        <router-link to="/login">Sign in</router-link>
+        已有账号？
+        <router-link to="/login">去登录</router-link>
       </div>
     </div>
   </div>
@@ -392,5 +392,59 @@ async function handleRegister() {
 
 .auth-link a:hover {
   color: var(--color-primary);
+}
+
+/* --- Mobile Responsive --- */
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 28px 20px 24px;
+    border-radius: 16px;
+    margin: 0 12px;
+  }
+
+  .brand-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    margin-bottom: 10px;
+  }
+
+  .cap-icon {
+    font-size: 24px;
+  }
+
+  .brand-name {
+    font-size: 15px;
+    letter-spacing: 0.15em;
+  }
+
+  .brand-subtitle {
+    font-size: 11px;
+  }
+
+  .form-title {
+    font-size: 19px;
+  }
+
+  .form-desc {
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+
+  .brand-header {
+    margin-bottom: 20px;
+  }
+
+  /* Role radio buttons stack on very small screens */
+  .role-group :deep(.el-radio-button__inner) {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  /* Reduce floating shape sizes */
+  .shape-1 { width: 200px; height: 200px; }
+  .shape-2 { width: 140px; height: 140px; }
+  .shape-3 { width: 100px; height: 100px; }
+  .shape-5 { width: 160px; height: 160px; }
 }
 </style>

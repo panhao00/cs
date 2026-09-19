@@ -65,7 +65,7 @@ node "后端服务器 (Spring Boot 3.3)" as BackendNode {
     artifact "BCrypt\n密码哈希" as BCrypt
   }
 
-  package "控制器层 (10个Controller)" as CtrlPkg {
+  package "控制器层 (18个Controller)" as CtrlPkg {
     artifact "AuthController\n登录认证" as AuthCtrl
     artifact "ScheduleController\n课表管理" as SchedCtrl
     artifact "TeachingController\n教授选课" as TeachCtrl
@@ -76,9 +76,17 @@ node "后端服务器 (Spring Boot 3.3)" as BackendNode {
     artifact "CatalogController\n课程目录" as CatCtrl
     artifact "NotificationController\n通知" as NotiCtrl
     artifact "HealthController\n健康检查" as HealthCtrl
+    artifact "WaitlistController\n候补名单" as WaitlistCtrl
+    artifact "ReviewController\n课程评价" as ReviewCtrl
+    artifact "RecommendationController\n课程推荐" as RecCtrl
+    artifact "EnrollmentStatsController\n选课统计" as EnrollStatsCtrl
+    artifact "GradeStatsController\n成绩统计" as GradeStatsCtrl
+    artifact "SystemSettingController\n系统设置" as SysSettingCtrl
+    artifact "AuditLogController\n审计日志查询" as AuditLogCtrl
+    artifact "DeadlineReminderController\n截止日期提醒" as DeadlineCtrl
   }
 
-  package "服务层 (10个Service)" as SvcPkg {
+  package "服务层 (21个Service)" as SvcPkg {
     artifact "AuthService\n登录认证" as AuthSvc
     artifact "ScheduleService\n选课逻辑" as SchedSvc
     artifact "TeachingService\n授课逻辑" as TeachSvc
@@ -89,12 +97,35 @@ node "后端服务器 (Spring Boot 3.3)" as BackendNode {
     artifact "CatalogService\n课程目录" as CatSvc
     artifact "NotificationService\n通知管理" as NotiSvc
     artifact "AuditService\n审计日志" as AuditSvc
+    artifact "WaitlistService\n候补名单管理" as WaitlistSvc
+    artifact "ReviewService\n课程评价管理" as ReviewSvc
+    artifact "RecommendationService\n课程推荐" as RecSvc
+    artifact "EnrollmentStatsService\n选课统计" as EnrollStatsSvc
+    artifact "GradeStatsService\n成绩统计" as GradeStatsSvc
+    artifact "SystemSettingService\n系统设置" as SysSettingSvc
+    artifact "AuditLogQueryService\n审计日志查询" as AuditLogSvc
+    artifact "BillingAsyncService\n异步计费(@Async)" as BillAsyncSvc
+    artifact "BillingRetryService\n计费重试" as BillRetrySvc
+    artifact "CapacityNotificationService\n容量预警通知" as CapNotiSvc
+    artifact "DeadlineReminderService\n截止日期提醒" as DeadlineSvc
   }
 
   package "数据访问层" as DAPkg {
     artifact "Spring Data JPA\nHibernate实现" as JPA
     artifact "RegistrationPhase\n注册阶段状态机" as RegPhase
     artifact "TimeConflictUtil\n时间冲突检测" as TimeUtil
+  }
+
+  package "适配器层 (Catalog Adapter)" as AdapterPkg {
+    artifact "CatalogAdapter\n课程目录适配器接口" as CatAdapter
+    artifact "LegacyCatalogAdapter\n遗留Ingres系统适配器" as LegacyCat
+    artifact "CachedCatalogAdapter\n缓存装饰器" as CachedCat
+    artifact "DirectCatalogAdapter\n直接数据库适配器" as DirectCat
+  }
+
+  package "基础设施" as InfraPkg {
+    artifact "WebSocket\n实时通知\n(SockJS + STOMP)" as WebSocket
+    artifact "@Async\n异步任务支持" as AsyncInfra
   }
 }
 
@@ -128,6 +159,15 @@ ReportCtrl --> ReportSvc : 调用
 CatCtrl --> CatSvc : 调用
 NotiCtrl --> NotiSvc : 调用
 
+WaitlistCtrl --> WaitlistSvc : 调用
+ReviewCtrl --> ReviewSvc : 调用
+RecCtrl --> RecSvc : 调用
+EnrollStatsCtrl --> EnrollStatsSvc : 调用
+GradeStatsCtrl --> GradeStatsSvc : 调用
+SysSettingCtrl --> SysSettingSvc : 调用
+AuditLogCtrl --> AuditLogSvc : 调用
+DeadlineCtrl --> DeadlineSvc : 调用
+
 AuthSvc --> SpringSec : 认证
 AuthSvc --> JWT : 生成令牌
 AuthSvc --> BCrypt : 密码比对
@@ -141,6 +181,32 @@ RegSvc --> JPA : 数据访问
 ReportSvc --> JPA : 数据访问
 CatSvc --> JPA : 数据访问
 NotiSvc --> JPA : 数据访问
+
+WaitlistSvc --> JPA : 数据访问
+ReviewSvc --> JPA : 数据访问
+RecSvc --> JPA : 数据访问
+EnrollStatsSvc --> JPA : 数据访问
+GradeStatsSvc --> JPA : 数据访问
+SysSettingSvc --> JPA : 数据访问
+AuditLogSvc --> JPA : 数据访问
+BillAsyncSvc --> JPA : 数据访问
+BillRetrySvc --> BillAsyncSvc : 重试调用
+CapNotiSvc --> NotiSvc : 容量预警
+CapNotiSvc --> WebSocket : 实时推送
+DeadlineSvc --> NotiSvc : 提醒通知
+DeadlineSvc --> WebSocket : 实时推送
+
+CatSvc --> CatAdapter : 课程目录查询
+CachedCat --> LegacyCat : 装饰(缓存)
+CachedCat --> DirectCat : 装饰(缓存)
+CatAdapter <|.. LegacyCat : 实现
+CatAdapter <|.. CachedCat : 实现
+CatAdapter <|.. DirectCat : 实现
+LegacyCat --> JPA : 遗留数据
+DirectCat --> JPA : 直接查询
+
+BillAsyncSvc ..> AsyncInfra : 异步执行
+NotiSvc --> WebSocket : 推送通知
 
 SchedSvc --> NotiSvc : 选课通知
 SchedSvc --> AuditSvc : 审计日志
@@ -156,6 +222,7 @@ SchedSvc --> TimeUtil : 冲突检测
 TeachSvc --> TimeUtil : 冲突检测
 
 SchedSvc -.->|HTTP模拟调用| Billing
+BillAsyncSvc -.->|异步HTTP调用| Billing
 
 ' ========== 部署视图 ==========
 note as N1
@@ -173,6 +240,12 @@ note as N1
     -> Spring Boot (应用服务器)
     -> MySQL 8.x (主库)
     -> Billing System (HTTP API)
+
+  **新增组件:**
+  - 服务层: 21个Service (含候补/评价/推荐/统计/异步计费等)
+  - 控制器层: 18个Controller
+  - 适配器层: CatalogAdapter接口 + 3个实现
+  - 基础设施: WebSocket(SockJS+STOMP) + @Async异步支持
 end note
 
 @enduml

@@ -42,6 +42,17 @@ public class RoleGuard {
         return userId;
     }
 
+    /** 判断当前用户是否拥有指定角色(不强制,返回 false 而非抛异常) */
+    public boolean hasRole(String role) {
+        Long userId = securityContextHelper.getCurrentUserId();
+        if (userId == null) {
+            return false;
+        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_" + role));
+    }
+
     private Long requireRole(String role, String errorMessage) {
         Long userId = securityContextHelper.getCurrentUserId();
         if (userId == null) {

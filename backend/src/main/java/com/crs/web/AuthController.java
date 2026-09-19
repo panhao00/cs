@@ -1,6 +1,8 @@
 package com.crs.web;
 
+import com.crs.security.SecurityContextHelper;
 import com.crs.service.AuthService;
+import com.crs.web.dto.ChangePasswordRequest;
 import com.crs.web.dto.LoginRequest;
 import com.crs.web.dto.LoginResponse;
 import com.crs.web.dto.RegisterRequest;
@@ -9,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final SecurityContextHelper securityContextHelper;
 
     /**
      * 登录。
@@ -45,5 +49,17 @@ public class AuthController {
     public ResponseEntity<LoginResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(authService.register(request));
+    }
+
+    /**
+     * 修改密码。
+     * <p>
+     * 已登录用户修改密码,需验证旧密码。
+     */
+    @PutMapping("/change-password")
+    public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        Long userId = securityContextHelper.getCurrentUserId();
+        authService.changePassword(userId, request.getOldPassword(), request.getNewPassword());
+        return ResponseEntity.ok().build();
     }
 }

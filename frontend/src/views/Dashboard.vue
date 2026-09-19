@@ -1,6 +1,6 @@
 <template>
   <div class="dashboard">
-    <AppLayout title="Dashboard">
+    <AppLayout title="主页">
       <!-- Welcome Section -->
       <div class="welcome-section">
         <div class="welcome-content">
@@ -17,7 +17,7 @@
       </div>
 
       <!-- Quick Actions -->
-      <h2 class="section-title">Quick Actions</h2>
+      <h2 class="section-title">快捷操作</h2>
       <el-row :gutter="16">
         <template v-if="auth.role === 'STUDENT'">
           <el-col :xs="24" :sm="12" :md="8">
@@ -27,7 +27,7 @@
               </div>
               <div class="action-info">
                 <h3>选课</h3>
-                <p>Register for Courses</p>
+                <p>选课</p>
               </div>
               <el-icon class="action-arrow"><ArrowRight /></el-icon>
             </div>
@@ -39,7 +39,67 @@
               </div>
               <div class="action-info">
                 <h3>查看成绩单</h3>
-                <p>View Report Card</p>
+                <p>查看成绩单</p>
+              </div>
+              <el-icon class="action-arrow"><ArrowRight /></el-icon>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <div class="action-card" @click="$router.push('/grade-trend')">
+              <div class="action-icon trend">
+                <el-icon :size="24"><TrendCharts /></el-icon>
+              </div>
+              <div class="action-info">
+                <h3>成绩趋势</h3>
+                <p>成绩趋势</p>
+              </div>
+              <el-icon class="action-arrow"><ArrowRight /></el-icon>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <div class="action-card" @click="$router.push('/recommendations')">
+              <div class="action-icon recommend">
+                <el-icon :size="24"><MagicStick /></el-icon>
+              </div>
+              <div class="action-info">
+                <h3>智能推荐</h3>
+                <p>智能推荐</p>
+              </div>
+              <el-icon class="action-arrow"><ArrowRight /></el-icon>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <div class="action-card" @click="$router.push('/waitlist')">
+              <div class="action-icon waitlist">
+                <el-icon :size="24"><List /></el-icon>
+              </div>
+              <div class="action-info">
+                <h3>候补名单</h3>
+                <p>候补名单</p>
+              </div>
+              <el-icon class="action-arrow"><ArrowRight /></el-icon>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <div class="action-card" @click="$router.push('/my-reviews')">
+              <div class="action-icon recommend">
+                <el-icon :size="24"><ChatDotRound /></el-icon>
+              </div>
+              <div class="action-info">
+                <h3>我的评价</h3>
+                <p>我的评价</p>
+              </div>
+              <el-icon class="action-arrow"><ArrowRight /></el-icon>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <div class="action-card" @click="$router.push('/change-password')">
+              <div class="action-icon password">
+                <el-icon :size="24"><Key /></el-icon>
+              </div>
+              <div class="action-info">
+                <h3>修改密码</h3>
+                <p>修改密码</p>
               </div>
               <el-icon class="action-arrow"><ArrowRight /></el-icon>
             </div>
@@ -53,7 +113,7 @@
               </div>
               <div class="action-info">
                 <h3>选课授课</h3>
-                <p>Select Courses to Teach</p>
+                <p>选课授课</p>
               </div>
               <el-icon class="action-arrow"><ArrowRight /></el-icon>
             </div>
@@ -65,7 +125,19 @@
               </div>
               <div class="action-info">
                 <h3>提交成绩</h3>
-                <p>Submit Grades</p>
+                <p>提交成绩</p>
+              </div>
+              <el-icon class="action-arrow"><ArrowRight /></el-icon>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <div class="action-card" @click="$router.push('/change-password')">
+              <div class="action-icon password">
+                <el-icon :size="24"><Key /></el-icon>
+              </div>
+              <div class="action-info">
+                <h3>修改密码</h3>
+                <p>修改密码</p>
               </div>
               <el-icon class="action-arrow"><ArrowRight /></el-icon>
             </div>
@@ -79,7 +151,7 @@
               </div>
               <div class="action-info">
                 <h3>用户维护</h3>
-                <p>Maintain Users</p>
+                <p>用户维护</p>
               </div>
               <el-icon class="action-arrow"><ArrowRight /></el-icon>
             </div>
@@ -91,7 +163,55 @@
               </div>
               <div class="action-info">
                 <h3>关闭注册</h3>
-                <p>Close Registration</p>
+                <p>关闭注册</p>
+              </div>
+              <el-icon class="action-arrow"><ArrowRight /></el-icon>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <div class="action-card" @click="$router.push('/settings')">
+              <div class="action-icon settings">
+                <el-icon :size="24"><Setting /></el-icon>
+              </div>
+              <div class="action-info">
+                <h3>系统设置</h3>
+                <p>系统设置</p>
+              </div>
+              <el-icon class="action-arrow"><ArrowRight /></el-icon>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <div class="action-card" @click="$router.push('/enrollment-dashboard')">
+              <div class="action-icon report">
+                <el-icon :size="24"><DataAnalysis /></el-icon>
+              </div>
+              <div class="action-info">
+                <h3>选课统计</h3>
+                <p>选课统计</p>
+              </div>
+              <el-icon class="action-arrow"><ArrowRight /></el-icon>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <div class="action-card" @click="$router.push('/audit-logs')">
+              <div class="action-icon audit">
+                <el-icon :size="24"><Document /></el-icon>
+              </div>
+              <div class="action-info">
+                <h3>审计日志</h3>
+                <p>审计日志</p>
+              </div>
+              <el-icon class="action-arrow"><ArrowRight /></el-icon>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <div class="action-card" @click="$router.push('/change-password')">
+              <div class="action-icon password">
+                <el-icon :size="24"><Key /></el-icon>
+              </div>
+              <div class="action-info">
+                <h3>修改密码</h3>
+                <p>修改密码</p>
               </div>
               <el-icon class="action-arrow"><ArrowRight /></el-icon>
             </div>
@@ -106,12 +226,81 @@
             </div>
             <div class="action-info">
               <h3>通知中心</h3>
-              <p>Notifications</p>
+              <p>通知中心</p>
             </div>
             <el-icon class="action-arrow"><ArrowRight /></el-icon>
           </div>
         </el-col>
       </el-row>
+
+      <!-- Academic Summary (Student only) -->
+      <template v-if="auth.role === 'STUDENT'">
+        <h2 class="section-title">学业概览</h2>
+        <el-row :gutter="16">
+          <el-col :xs="24" :md="10">
+            <el-card class="info-card">
+              <template #header>
+                <div class="card-title-row">
+                  <el-icon><DataAnalysis /></el-icon>
+                  <span>学分与 GPA</span>
+                </div>
+              </template>
+              <div class="gpa-section">
+                <div class="gpa-circle">
+                  <span class="gpa-value">{{ academic.gpa.toFixed(2) }}</span>
+                  <span class="gpa-label">GPA</span>
+                </div>
+                <div class="gpa-details">
+                  <div class="detail-row">
+                    <span class="detail-label">已获学分</span>
+                    <span class="detail-value">{{ academic.creditsEarned }} / 120</span>
+                  </div>
+                  <el-progress
+                    :percentage="Math.min(100, Math.round(academic.creditsEarned / 120 * 100))"
+                    :stroke-width="8"
+                    :color="progressColor"
+                    :show-text="false"
+                  />
+                  <div class="detail-row">
+                    <span class="detail-label">本学期学分</span>
+                    <span class="detail-value">{{ academic.currentCredits }}</span>
+                  </div>
+                </div>
+              </div>
+            </el-card>
+          </el-col>
+          <el-col :xs="24" :md="14">
+            <el-card class="info-card">
+              <template #header>
+                <div class="card-title-row">
+                  <el-icon><Calendar /></el-icon>
+                  <span>历史学期</span>
+                </div>
+              </template>
+              <div v-if="academic.semesterHistory.length === 0" class="empty-history">
+                暂无历史成绩
+              </div>
+              <div v-else class="semester-list">
+                <div v-for="s in academic.semesterHistory" :key="s.semester" class="semester-item">
+                  <div class="semester-header">
+                    <span class="semester-name">{{ s.semester }}</span>
+                    <el-tag :type="gpaTagType(s.semesterGpa)" size="small" effect="dark">
+                      GPA {{ s.semesterGpa.toFixed(2) }}
+                    </el-tag>
+                    <span class="semester-credits">{{ s.credits }} 学分</span>
+                  </div>
+                  <div class="semester-courses">
+                    <span v-for="c in s.courses" :key="c.courseId" class="course-chip">
+                      {{ c.courseId }}
+                      <span class="course-grade" :class="'grade-' + (c.grade || 'none')">{{ c.grade || '-' }}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </template>
 
       <!-- Account Info & Features -->
       <el-row :gutter="16" style="margin-top: 24px">
@@ -120,24 +309,24 @@
             <template #header>
               <div class="card-title-row">
                 <el-icon><InfoFilled /></el-icon>
-                <span>Account Information</span>
+                <span>账户信息</span>
               </div>
             </template>
             <div class="info-grid">
               <div class="info-item">
-                <span class="info-label">User ID</span>
+                <span class="info-label">用户编号</span>
                 <span class="info-value">{{ auth.user?.userId }}</span>
               </div>
               <div class="info-item">
-                <span class="info-label">Username</span>
+                <span class="info-label">用户名</span>
                 <span class="info-value">{{ auth.user?.username }}</span>
               </div>
               <div class="info-item">
-                <span class="info-label">Full Name</span>
+                <span class="info-label">姓名</span>
                 <span class="info-value">{{ auth.user?.name }}</span>
               </div>
               <div class="info-item">
-                <span class="info-label">Role</span>
+                <span class="info-label">角色</span>
                 <span class="info-value">
                   <el-tag :type="roleTagType" size="small">{{ roleLabel }}</el-tag>
                 </span>
@@ -150,7 +339,7 @@
             <template #header>
               <div class="card-title-row">
                 <el-icon><CircleCheck /></el-icon>
-                <span>System Features</span>
+                <span>系统功能</span>
               </div>
             </template>
             <div class="features-grid">
@@ -178,20 +367,43 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import {
   DocumentAdd, DataAnalysis, Reading, EditPen, User, Lock, Bell,
-  ArrowRight, InfoFilled, CircleCheck, CircleCheckFilled, CircleClose
+  ArrowRight, InfoFilled, CircleCheck, CircleCheckFilled, CircleClose,
+  TrendCharts, MagicStick, List, Key, Setting, Document, ChatDotRound,
+  Calendar
 } from '@element-plus/icons-vue'
 import AppLayout from '../components/AppLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import { notificationApi } from '../api/notifications'
+import { academicApi } from '../api/stats'
 
-const router = useRouter()
 const auth = useAuthStore()
 const unreadCount = ref(0)
 let refreshTimer = null
+
+const academic = reactive({
+  gpa: 0,
+  creditsEarned: 0,
+  creditsAttempted: 0,
+  currentCredits: 0,
+  semesterHistory: []
+})
+
+const progressColor = computed(() => {
+  const pct = Math.min(100, Math.round(academic.creditsEarned / 120 * 100))
+  if (pct >= 75) return '#67C23A'
+  if (pct >= 50) return '#409EFF'
+  return '#E6A23C'
+})
+
+function gpaTagType(gpa) {
+  if (gpa >= 3.5) return 'success'
+  if (gpa >= 3.0) return 'primary'
+  if (gpa >= 2.0) return 'warning'
+  return 'danger'
+}
 
 const roleLabel = computed(() => {
   const map = { STUDENT: '学生', PROFESSOR: '教授', REGISTRAR: '注册主任' }
@@ -205,32 +417,44 @@ const roleTagType = computed(() => {
 
 const greeting = computed(() => {
   const hour = new Date().getHours()
-  if (hour < 6) return 'Good Night'
-  if (hour < 12) return 'Good Morning'
-  if (hour < 18) return 'Good Afternoon'
-  return 'Good Evening'
+  if (hour < 6) return '夜深了'
+  if (hour < 12) return '早上好'
+  if (hour < 18) return '下午好'
+  return '晚上好'
 })
 
 const roleDescription = computed(() => {
   const map = {
-    STUDENT: 'Manage your course registrations and view academic progress',
-    PROFESSOR: 'Select courses to teach and manage student grades',
-    REGISTRAR: 'Manage users and control the registration process'
+    STUDENT: '管理课程注册，查看学业进度',
+    PROFESSOR: '选择教授课程，管理学生成绩',
+    REGISTRAR: '管理用户，控制注册流程'
   }
-  return map[auth.role] || 'Welcome to the Course Registration System'
+  return map[auth.role] || '欢迎使用课程注册系统'
 })
 
 const features = [
-  { name: 'Login', status: 'Active', done: true },
-  { name: 'Student Registration', status: 'Active', done: true },
-  { name: 'Teaching Selection', status: 'Active', done: true },
-  { name: 'Grade Submission', status: 'Active', done: true },
-  { name: 'Report Card', status: 'Active', done: true },
-  { name: 'User Management', status: 'Active', done: true },
-  { name: 'Close Registration', status: 'Active', done: true }
+  { name: '登录', status: '已上线', done: true },
+  { name: '学生选课', status: '已上线', done: true },
+  { name: '教授选课', status: '已上线', done: true },
+  { name: '成绩录入', status: '已上线', done: true },
+  { name: '成绩单', status: '已上线', done: true },
+  { name: '用户管理', status: '已上线', done: true },
+  { name: '注册管理', status: '已上线', done: true },
+  { name: '课程评价', status: '已上线', done: true },
+  { name: '课程推荐', status: '已上线', done: true },
+  { name: '候补名单', status: '已上线', done: true },
+  { name: '选课统计', status: '已上线', done: true },
+  { name: '成绩趋势', status: '已上线', done: true },
+  { name: '系统设置', status: '已上线', done: true },
+  { name: '审计日志', status: '已上线', done: true },
+  { name: '通知中心', status: '已上线', done: true },
+  { name: '修改密码', status: '已上线', done: true },
+  { name: '课表周视图', status: '已上线', done: true },
+  { name: '学业概览', status: '已上线', done: true }
 ]
 
 async function refreshUnreadCount() {
+  if (auth.role !== 'STUDENT') return
   try {
     const res = await notificationApi.getUnreadCount()
     unreadCount.value = res.data.count
@@ -241,8 +465,24 @@ async function refreshUnreadCount() {
 
 onMounted(() => {
   refreshUnreadCount()
-  refreshTimer = setInterval(refreshUnreadCount, 30000)
+  if (auth.role === 'STUDENT') {
+    refreshTimer = setInterval(refreshUnreadCount, 30000)
+    loadAcademic()
+  }
 })
+
+async function loadAcademic() {
+  try {
+    const res = await academicApi.getSummary()
+    academic.gpa = res.data.cumulativeGpa
+    academic.creditsEarned = res.data.totalCreditsEarned
+    academic.creditsAttempted = res.data.totalCreditsAttempted
+    academic.currentCredits = res.data.currentEnrolledCredits
+    academic.semesterHistory = res.data.semesterHistory || []
+  } catch {
+    // 静默失败
+  }
+}
 
 onUnmounted(() => {
   if (refreshTimer) clearInterval(refreshTimer)
@@ -389,6 +629,30 @@ onUnmounted(() => {
   background: linear-gradient(135deg, #6366f1, #4f46e5);
 }
 
+.action-icon.trend {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.action-icon.recommend {
+  background: linear-gradient(135deg, #ec4899, #db2777);
+}
+
+.action-icon.waitlist {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.action-icon.password {
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
+}
+
+.action-icon.settings {
+  background: linear-gradient(135deg, #64748b, #475569);
+}
+
+.action-icon.audit {
+  background: linear-gradient(135deg, #78716c, #57534e);
+}
+
 .notification-dot {
   position: absolute;
   top: 6px;
@@ -520,5 +784,197 @@ onUnmounted(() => {
 
 .feature-item:not(.done) .feature-name {
   color: var(--color-text-secondary);
+}
+
+/* GPA Section */
+.gpa-section {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.gpa-circle {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+}
+
+.gpa-value {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.gpa-label {
+  font-size: 11px;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+.gpa-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.detail-label {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.detail-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Semester list */
+.empty-history {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: 24px 0;
+}
+
+.semester-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.semester-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.semester-item:last-child {
+  border-bottom: none;
+}
+
+.semester-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.semester-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.semester-credits {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-left: auto;
+}
+
+.semester-courses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.course-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-page);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+}
+
+.course-grade {
+  font-weight: 600;
+}
+
+.grade-A { color: #67C23A; }
+.grade-B { color: #409EFF; }
+.grade-C { color: #E6A23C; }
+.grade-D { color: #F56C6C; }
+.grade-F, .grade-I { color: #909399; }
+.grade-none { color: #C0C4CC; }
+
+/* --- Mobile Responsive --- */
+@media (max-width: 768px) {
+  .welcome-section {
+    padding: 24px 20px;
+    border-radius: var(--radius-lg);
+  }
+
+  .welcome-greeting {
+    font-size: 20px;
+  }
+
+  .welcome-subtitle {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .welcome-desc {
+    font-size: 13px;
+  }
+
+  .section-title {
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+
+  .action-card {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .action-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .action-info h3 {
+    font-size: 14px;
+  }
+
+  .action-info p {
+    font-size: 11px;
+  }
+
+  /* Stack info/features cards vertically */
+  .info-card,
+  .features-card {
+    margin-bottom: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .welcome-section {
+    padding: 20px 16px;
+  }
+
+  .welcome-greeting {
+    font-size: 18px;
+  }
+
+  .action-card {
+    padding: 12px 14px;
+  }
 }
 </style>

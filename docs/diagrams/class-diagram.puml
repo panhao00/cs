@@ -20,6 +20,11 @@ skinparam note {
   BackgroundColor #FFF9C4
   BorderColor #F9A825
 }
+skinparam package {
+  BackgroundColor #F5F5F5
+  BorderColor #999999
+  FontSize 10
+}
 
 title Wylie College 课程注册系统 - 领域模型类图
 
@@ -77,6 +82,12 @@ enum NotificationType {
 enum UserStatus {
   ACTIVE
   INACTIVE
+}
+
+enum WaitlistStatus {
+  WAITING
+  ENROLLED
+  CANCELLED
 }
 
 ' ========== 实体类 ==========
@@ -191,6 +202,24 @@ class SystemSetting {
   - updatedAt : LocalDateTime
 }
 
+class Waitlist {
+  - id : Long <<PK>>
+  - offeringId : Long <<FK>>
+  - studentId : Long <<FK>>
+  - position : Integer
+  - status : WaitlistStatus
+  - createdAt : LocalDateTime
+}
+
+class Review {
+  - id : Long <<PK>>
+  - offeringId : Long <<FK>>
+  - studentId : Long <<FK>>
+  - rating : Integer
+  - comment : String
+  - createdAt : LocalDateTime
+}
+
 ' ========== 关系 ==========
 User "1" --> "*" Schedule : 拥有课表\nstudentId
 User "1" --> "*" Enrollment : 选课记录\nstudentId
@@ -199,6 +228,8 @@ User "1" --> "*" Bill : 账单\nstudentId
 User "1" --> "*" Notification : 通知\nstudentId
 User "1" --> "*" CourseOffering : 授课\nprofessorId
 User "1" --> "*" AuditLog : 审计操作\nactorId
+User "1" --> "*" Waitlist : 候补记录\nstudentId
+User "1" --> "*" Review : 课程评价\nstudentId
 
 Course "1" --> "*" CourseOffering : 课程开设\ncourseId
 Course "1" --> "0..1" Course : 先修课\nprerequisiteId
@@ -207,6 +238,8 @@ Schedule "1" --> "*" ScheduleItem : 包含\nscheduleId
 CourseOffering "1" --> "*" ScheduleItem : 引用\nofferingId
 CourseOffering "1" --> "*" Enrollment : 选课名单\nofferingId
 CourseOffering "1" --> "*" Grade : 班级成绩\nofferingId
+CourseOffering "1" --> "*" Waitlist : 候补名单\nofferingId
+CourseOffering "1" --> "*" Review : 课程评价\nofferingId
 
 ' ========== 枚举绑定 ==========
 User --> Role
@@ -218,6 +251,294 @@ ScheduleItem --> ItemKind
 ScheduleItem --> ItemStatus
 Bill --> BillStatus
 Notification --> NotificationType
+Waitlist --> WaitlistStatus
+
+' ========== 服务层 ==========
+package "Service" {
+  class AuthService <<Service>> {
+    + login(username, password) : AuthResponse
+    + register(dto) : User
+  }
+
+  class UserService <<Service>> {
+    + findAll() : List<User>
+    + findById(id) : User
+    + create(dto) : User
+    + update(id, dto) : User
+    + updateStatus(id, status) : User
+    + delete(id) : void
+  }
+
+  class ScheduleService <<Service>> {
+    + getMySchedule(studentId) : Schedule
+    + addOffering(scheduleId, offeringId) : ScheduleItem
+    + removeOffering(scheduleId, offeringId) : void
+    + submit(scheduleId) : Enrollment
+    + deleteSchedule(scheduleId) : void
+  }
+
+  class TeachingService <<Service>> {
+    + getOfferings() : List<CourseOffering>
+    + selectOfferings(offeringIds) : List<CourseOffering>
+  }
+
+  class GradeService <<Service>> {
+    + getTaughtOfferings(professorId) : List<CourseOffering>
+    + getRoster(offeringId) : List<Enrollment>
+    + submitGrades(offeringId, grades) : List<Grade>
+  }
+
+  class ReportCardService <<Service>> {
+    + getReportCard(studentId, semester) : ReportCard
+  }
+
+  class RegistrationService <<Service>> {
+    + getStatus() : RegistrationStatus
+    + getPreview() : RegistrationPreview
+    + closeRegistration() : RegistrationResult
+  }
+
+  class CatalogService <<Service>> {
+    + getOfferings(department, semester) : List<CourseOffering>
+    + getOffering(id) : CourseOffering
+  }
+
+  class NotificationService <<Service>> {
+    + getNotifications(studentId) : List<Notification>
+    + markRead(notificationId) : void
+    + markAllRead(studentId) : void
+    + sendNotification(dto) : Notification
+  }
+
+  class AuditService <<Service>> {
+    + log(actorId, action, targetType, targetId, details) : void
+  }
+
+  class BillingAsyncService <<Service>> {
+    + sendBillAsync(enrollment) : void
+  }
+
+  class BillingRetryService <<Service>> {
+    + retryFailedBills() : void
+  }
+
+  class EnrollmentStatsService <<Service>> {
+    + getEnrollmentStats(semester) : EnrollmentStats
+    + getEnrollmentTrend(offeringId) : List<DailyEnrollment>
+  }
+
+  class GradeStatsService <<Service>> {
+    + getGradeStats(offeringId) : GradeStats
+    + getGpaDistribution(semester) : Map<String, Integer>
+  }
+
+  class SystemSettingService <<Service>> {
+    + get(key) : String
+    + set(key, value) : SystemSetting
+    + getAll() : List<SystemSetting>
+  }
+
+  class ReviewService <<Service>> {
+    + addReview(offeringId, studentId, rating, comment) : Review
+    + getReviews(offeringId) : List<Review>
+    + getAverageRating(offeringId) : Double
+  }
+
+  class WaitlistService <<Service>> {
+    + joinWaitlist(offeringId, studentId) : Waitlist
+    + leaveWaitlist(offeringId, studentId) : void
+    + getWaitlist(offeringId) : List<Waitlist>
+    + processWaitlist(offeringId) : void
+  }
+
+  class RecommendationService <<Service>> {
+    + getRecommendations(studentId) : List<CourseOffering>
+  }
+
+  class AuditLogQueryService <<Service>> {
+    + queryLogs(actorId, action, from, to) : List<AuditLog>
+    + getLogById(id) : AuditLog
+  }
+
+  class CapacityNotificationService <<Service>> {
+    + checkAndNotify(offeringId) : void
+    + notifyLowCapacity(offeringId) : void
+  }
+
+  class DeadlineReminderService <<Service>> {
+    + checkDeadlines() : void
+    + sendReminder(studentId, deadline) : void
+  }
+}
+
+' ========== 控制器层 ==========
+package "Controller" {
+  class AuthController <<Controller>> {
+    + login(request) : AuthResponse
+  }
+
+  class UserController <<Controller>> {
+    + findAll() : List<User>
+    + create(dto) : User
+    + update(id, dto) : User
+    + updateStatus(id, status) : User
+    + delete(id) : void
+  }
+
+  class CatalogController <<Controller>> {
+    + getOfferings(department, semester) : List<CourseOffering>
+    + getOffering(id) : CourseOffering
+  }
+
+  class ScheduleController <<Controller>> {
+    + getMySchedule() : Schedule
+    + addOffering(scheduleId, offeringId) : ScheduleItem
+    + removeOffering(scheduleId, offeringId) : void
+    + submit(scheduleId) : Enrollment
+    + deleteSchedule(scheduleId) : void
+  }
+
+  class TeachingController <<Controller>> {
+    + getOfferings() : List<CourseOffering>
+    + selectOfferings(offeringIds) : List<CourseOffering>
+  }
+
+  class GradeController <<Controller>> {
+    + getTaughtOfferings() : List<CourseOffering>
+    + getRoster(offeringId) : List<Enrollment>
+    + submitGrades(offeringId, grades) : List<Grade>
+  }
+
+  class ReportCardController <<Controller>> {
+    + getReportCard(semester) : ReportCard
+  }
+
+  class RegistrationController <<Controller>> {
+    + getStatus() : RegistrationStatus
+    + getPreview() : RegistrationPreview
+    + closeRegistration() : RegistrationResult
+  }
+
+  class NotificationController <<Controller>> {
+    + getNotifications() : List<Notification>
+    + markRead(notificationId) : void
+    + markAllRead() : void
+  }
+
+  class HealthController <<Controller>> {
+    + health() : String
+  }
+
+  class WaitlistController <<Controller>> {
+    + joinWaitlist(offeringId) : Waitlist
+    + leaveWaitlist(offeringId) : void
+    + getWaitlist(offeringId) : List<Waitlist>
+  }
+
+  class ReviewController <<Controller>> {
+    + addReview(offeringId, dto) : Review
+    + getReviews(offeringId) : List<Review>
+  }
+
+  class RecommendationController <<Controller>> {
+    + getRecommendations() : List<CourseOffering>
+  }
+
+  class EnrollmentStatsController <<Controller>> {
+    + getStats(semester) : EnrollmentStats
+    + getTrend(offeringId) : List<DailyEnrollment>
+  }
+
+  class GradeStatsController <<Controller>> {
+    + getStats(offeringId) : GradeStats
+    + getGpaDistribution(semester) : Map<String, Integer>
+  }
+
+  class SystemSettingController <<Controller>> {
+    + getAll() : List<SystemSetting>
+    + get(key) : String
+    + set(key, value) : SystemSetting
+  }
+
+  class AuditLogController <<Controller>> {
+    + queryLogs(actorId, action, from, to) : List<AuditLog>
+    + getLogById(id) : AuditLog
+  }
+
+  class DeadlineReminderController <<Controller>> {
+    + checkDeadlines() : void
+  }
+}
+
+' ========== 服务层关系 ==========
+ScheduleService --> Schedule : 使用
+ScheduleService --> ScheduleItem : 使用
+ScheduleService --> Enrollment : 创建
+ScheduleService --> TimeConflictUtil : 调用
+ScheduleService --> PrerequisiteChecker : 调用
+
+TeachingService --> CourseOffering : 使用
+TeachingService --> TimeConflictUtil : 调用
+
+GradeService --> Grade : 使用
+GradeService --> Enrollment : 查询
+GradeService --> NotificationService : 发送通知
+
+ReportCardService --> Grade : 查询
+ReportCardService --> Enrollment : 查询
+
+RegistrationService --> CourseOffering : 使用
+RegistrationService --> Enrollment : 使用
+RegistrationService --> BillingAsyncService : 异步计费
+RegistrationService --> AuditService : 审计
+
+CatalogService --> CourseOffering : 查询
+
+NotificationService --> Notification : 使用
+
+AuditService --> AuditLog : 使用
+
+BillingAsyncService --> Bill : 创建
+BillingRetryService --> Bill : 重试
+
+WaitlistService --> Waitlist : 使用
+WaitlistService --> CourseOffering : 查询容量
+WaitlistService --> Enrollment : 自动注册
+
+ReviewService --> Review : 使用
+ReviewService --> CourseOffering : 查询
+
+RecommendationService --> CourseOffering : 查询
+RecommendationService --> Enrollment : 查询历史
+RecommendationService --> Grade : 查询成绩
+
+AuditLogQueryService --> AuditLog : 查询
+
+CapacityNotificationService --> CourseOffering : 查询容量
+CapacityNotificationService --> NotificationService : 发送通知
+
+DeadlineReminderService --> CourseOffering : 查询截止日期
+DeadlineReminderService --> NotificationService : 发送提醒
+
+' ========== 控制器层关系 ==========
+AuthController --> AuthService : 使用
+UserController --> UserService : 使用
+CatalogController --> CatalogService : 使用
+ScheduleController --> ScheduleService : 使用
+TeachingController --> TeachingService : 使用
+GradeController --> GradeService : 使用
+ReportCardController --> ReportCardService : 使用
+RegistrationController --> RegistrationService : 使用
+NotificationController --> NotificationService : 使用
+
+WaitlistController --> WaitlistService : 使用
+ReviewController --> ReviewService : 使用
+RecommendationController --> RecommendationService : 使用
+EnrollmentStatsController --> EnrollmentStatsService : 使用
+GradeStatsController --> GradeStatsService : 使用
+SystemSettingController --> SystemSettingService : 使用
+AuditLogController --> AuditLogQueryService : 使用
+DeadlineReminderController --> DeadlineReminderService : 使用
 
 ' ========== 注释 ==========
 note bottom of User
@@ -237,6 +558,20 @@ note left of Enrollment
   唯一约束:
   UNIQUE(offering_id, student_id)
   确保不重复注册
+end note
+
+note bottom of Waitlist
+  候补名单:
+  - 按报名时间排序
+  - 有人退课时自动补位
+  - position 记录排队顺序
+end note
+
+note right of Review
+  课程评价:
+  - rating 范围 1~5
+  - 学生退课后评价保留
+  - 支持平均分计算
 end note
 
 @enduml

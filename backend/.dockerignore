@@ -1,0 +1,10 @@
+target/
+*.class
+*.jar
+!*.jar
+.mvn/repository
+.idea/
+*.iml
+*.log
+.git/
+.vscode/

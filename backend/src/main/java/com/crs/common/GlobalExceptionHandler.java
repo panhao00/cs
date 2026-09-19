@@ -6,12 +6,14 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理。
@@ -58,6 +60,21 @@ public class GlobalExceptionHandler {
         log.warn("数据完整性约束违反", e);
         return ResponseEntity.status(409)
                 .body(new ErrorResponse(409, "Conflict", "数据冲突: 可能违反唯一约束或外键约束", LocalDateTime.now()));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResource(NoResourceFoundException e) {
+        return ResponseEntity.status(404)
+                .body(new ErrorResponse(404, "Not Found", "请求的资源不存在: " + e.getResourcePath(), LocalDateTime.now()));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleNotReadable(HttpMessageNotReadableException e) {
+        String detail = e.getMostSpecificCause() != null
+                ? e.getMostSpecificCause().getMessage()
+                : e.getMessage();
+        return ResponseEntity.status(400)
+                .body(new ErrorResponse(400, "Bad Request", "请求体格式错误: " + detail, LocalDateTime.now()));
     }
 
     @ExceptionHandler(Exception.class)

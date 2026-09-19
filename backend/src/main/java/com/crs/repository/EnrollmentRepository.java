@@ -27,4 +27,12 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
             @Param("studentId") Long studentId,
             @Param("semester") String semester,
             @Param("status") EnrollmentStatus status);
+
+    /** 批量统计多个开设的选课人数(减少 N+1 查询) */
+    @Query("SELECT e.offeringId, COUNT(e) FROM Enrollment e "
+            + "WHERE e.offeringId IN :offeringIds AND e.status = :status "
+            + "GROUP BY e.offeringId")
+    List<Object[]> countByOfferingIdsAndStatus(
+            @Param("offeringIds") List<Long> offeringIds,
+            @Param("status") EnrollmentStatus status);
 }

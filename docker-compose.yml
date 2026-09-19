@@ -1,0 +1,177 @@
+# ============================================
+# 课程注册系统 (CRS) — 完整容器化部署
+# ============================================
+# 使用方法:
+#   1. 准备环境变量(至少 JWT_SECRET / GRADE_ENCRYPTION_KEY / MYSQL_ROOT_PASSWORD):
+#        Copy-Item .env.example .env(然后编辑)
+#        或使用一键启动脚本:
+#        .\start-docker.ps1 (Windows)
+#        ./start-docker.sh (Linux/macOS)
+#   2. docker compose up -d              # 启动所有服务 (MySQL + 3实例 + Nginx + 前端)
+#   3. docker compose logs -f crs-app1   # 查看单实例日志
+#   4. docker compose down               # 停止所有服务
+#   5. docker compose ps                 # 查看运行状态
+# SSL 证书(nginx 终止 TLS)由 .\tools\generate-ssl-cert.ps1 生成, 未生成时 nginx 以 HTTP 运行。
+# ============================================
+
+# 公共环境变量(供各实例复用 + 覆盖)
+x-app-env: &app-env
+  SPRING_PROFILES_ACTIVE: prod
+  DB_URL: jdbc:mysql://crs-mysql:3306/crs?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
+  DB_USERNAME: crs
+  DB_PASSWORD: ${MYSQL_PASSWORD:-crs123456}
+  # 生产强制要求显式配置, 缺失时 docker compose 直接报错(而非使用弱默认值)
+  JWT_SECRET: "${JWT_SECRET:?JWT_SECRET_is_required_(32+_chars)}"
+  GRADE_ENCRYPTION_KEY: "${GRADE_ENCRYPTION_KEY:?GRADE_ENCRYPTION_KEY_is_required_(32B_base64)}"
+  # 定时任务开关: 仅实例 1 执行 @Scheduled 任务, 避免多实例重复计费重试
+  CRS_SCHEDULER_ENABLED: "true"
+  JAVA_OPTS: >-
+    -XX:+UseG1GC
+    -XX:MaxRAMPercentage=75.0
+    -XX:InitialRAMPercentage=50.0
+    -XX:+UseStringDeduplication
+    -Djava.security.egd=file:/dev/./urandom
+    -Dfile.encoding=UTF-8
+    -Duser.timezone=Asia/Shanghai
+
+x-app-common: &app-common
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  depends_on:
+    crs-mysql:
+      condition: service_healthy
+  expose:
+    - "8080"
+  healthcheck:
+    # 应用为纯 HTTP(nginx 负责 TLS 终止), 健康检查必须走 http 而非 https
+    test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 60s
+  networks:
+    - crs-network
+  logging:
+    driver: json-file
+    options:
+      max-size: "20m"
+      max-file: "5"
+
+services:
+  # ---------- MySQL 数据库 ----------
+  crs-mysql:
+    image: mysql:8.0
+    container_name: crs-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-crs123456}
+      MYSQL_DATABASE: crs
+      MYSQL_USER: crs
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-crs123456}
+      MYSQL_CHARSET: utf8mb4
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./backend/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-crs123456}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - crs-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------- Spring Boot 实例 1 (唯一运行定时任务) ----------
+  crs-app1:
+    <<: *app-common
+    container_name: crs-app1
+    environment:
+      <<: *app-env
+      CRS_SCHEDULER_ENABLED: "true"
+
+  # ---------- Spring Boot 实例 2 ----------
+  crs-app2:
+    <<: *app-common
+    container_name: crs-app2
+    environment:
+      <<: *app-env
+      CRS_SCHEDULER_ENABLED: "false"
+
+  # ---------- Spring Boot 实例 3 ----------
+  crs-app3:
+    <<: *app-common
+    container_name: crs-app3
+    environment:
+      <<: *app-env
+      CRS_SCHEDULER_ENABLED: "false"
+
+  # ---------- Nginx 负载均衡 ----------
+  crs-nginx:
+    image: nginx:alpine
+    container_name: crs-nginx
+    restart: unless-stopped
+    depends_on:
+      - crs-app1
+      - crs-app2
+      - crs-app3
+    ports:
+      - "8443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./backend/src/main/resources/ssl/server.crt:/etc/nginx/ssl/server.crt:ro
+      - ./backend/src/main/resources/ssl/server.key:/etc/nginx/ssl/server.key:ro
+    healthcheck:
+      # nginx 暴露的 /health 为明文 HTTP(见 nginx.conf 第 58/100 行注释)
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - crs-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------- 前端 (Vue 3 + Nginx) ----------
+  crs-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: crs-frontend
+    restart: unless-stopped
+    depends_on:
+      - crs-nginx
+    ports:
+      - "80:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - crs-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mysql-data:
+    driver: local
+
+networks:
+  crs-network:
+    driver: bridge

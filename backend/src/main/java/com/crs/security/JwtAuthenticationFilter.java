@@ -36,16 +36,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
             Claims claims = tokenProvider.parse(token);
-            if (claims != null) {
-                Long userId = Long.parseLong(claims.getSubject());
-                String role = (String) claims.get("role");
-
-                var auth = new UsernamePasswordAuthenticationToken(
-                        userId,
-                        null,
-                        List.of(new SimpleGrantedAuthority("ROLE_" + role)));
-                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(auth);
+            if (claims != null && claims.getSubject() != null) {
+                try {
+                    Long userId = Long.parseLong(claims.getSubject());
+                    String role = (String) claims.get("role");
+                    if (role != null) {
+                        var auth = new UsernamePasswordAuthenticationToken(
+                                userId,
+                                null,
+                                List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+                        auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(auth);
+                    }
+                } catch (NumberFormatException e) {
+                    log.debug("JWT subject 不是有效用户 ID: {}", claims.getSubject());
+                }
             }
         }
         chain.doFilter(request, response);

@@ -1,6 +1,6 @@
 <template>
   <div class="reg-mgmt">
-    <AppLayout title="注册管理 (Close Registration)">
+    <AppLayout title="注册管理">
       <template #actions>
         <el-tag :type="phaseTagType" effect="dark" size="small">
           <span class="phase-dot" :class="phase === 'closed' ? 'dot-closed' : 'dot-open'"></span>
@@ -38,6 +38,15 @@
           >
             <el-icon><Lock /></el-icon>
             关闭注册
+          </el-button>
+          <el-button
+            type="warning"
+            :disabled="status.canAdvance !== 'true' || status.phase === 'closed'"
+            :loading="advancing"
+            @click="advancePhase"
+          >
+            <el-icon><Right /></el-icon>
+            推进阶段
           </el-button>
           <el-button :loading="loading" @click="loadPreview">
             <el-icon><Refresh /></el-icon>
@@ -109,12 +118,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { InfoFilled, Lock, Refresh, DataAnalysis } from '@element-plus/icons-vue'
+import { InfoFilled, Lock, Refresh, DataAnalysis, Right } from '@element-plus/icons-vue'
 import AppLayout from '../components/AppLayout.vue'
 import { registrationApi } from '../api/users'
 
 const loading = ref(false)
 const closing = ref(false)
+const advancing = ref(false)
 const status = ref({ phase: 'open', semester: '' })
 const preview = ref(null)
 
@@ -170,6 +180,30 @@ async function closeRegistration() {
     ElMessage.error('关闭失败: ' + (e.response?.data?.message || e.message))
   } finally {
     closing.value = false
+  }
+}
+
+async function advancePhase() {
+  try {
+    await ElMessageBox.confirm(
+      `确认推进注册阶段? 当前阶段: ${status.value.phase}`,
+      '推进阶段确认',
+      { type: 'warning' }
+    )
+  } catch {
+    return
+  }
+
+  advancing.value = true
+  try {
+    const { data } = await registrationApi.advancePhase()
+    ElMessage.success(data.message || '阶段推进成功')
+    await loadStatus()
+    await loadPreview()
+  } catch (e) {
+    ElMessage.error('推进失败: ' + (e.response?.data?.message || e.message))
+  } finally {
+    advancing.value = false
   }
 }
 
@@ -284,5 +318,60 @@ onMounted(async () => {
 
 .preview-alert {
   margin-top: 16px;
+}
+
+/* --- Mobile Responsive --- */
+@media (max-width: 768px) {
+  /* Status content stacks */
+  .status-content {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .status-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Stats row wraps */
+  .stats-row {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .stat-item {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 120px;
+    padding: 16px;
+  }
+
+  .stat-number {
+    font-size: 22px;
+  }
+
+  /* Table scrollable */
+  .refined-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .card-title {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .stat-item {
+    flex: 1 1 100%;
+  }
+
+  .status-actions {
+    flex-direction: column;
+  }
+
+  .status-actions .el-button {
+    width: 100%;
+  }
 }
 </style>

@@ -53,15 +53,35 @@ rectangle "课程注册系统 (CRS)" as CRS {
   UC_Register ..> UC_SubmitSchedule : <<include>>
   UC_SubmitSchedule ..> UC_ValidateRules : <<include>>
 
+  ' ========== 学生扩展用例 ==========
+  usecase "管理候补名单\n(Manage Waitlist)" as UC_Waitlist
+  usecase "加入候补名单" as UC_JoinWaitlist
+  usecase "取消候补名单" as UC_CancelWaitlist
+  usecase "课程评价\n(Course Review)" as UC_CourseReview
+  usecase "提交评价" as UC_SubmitReview
+  usecase "修改评价" as UC_EditReview
+  usecase "删除评价" as UC_DeleteReview
+  usecase "课程推荐\n(Course Recommendation)" as UC_Recommendation
+  usecase "查看GPA趋势\n(View GPA Trend)" as UC_GPATrend
+
+  UC_Waitlist ..> UC_JoinWaitlist : <<include>>
+  UC_Waitlist ..> UC_CancelWaitlist : <<include>>
+  UC_CourseReview ..> UC_SubmitReview : <<include>>
+  UC_CourseReview ..> UC_EditReview : <<include>>
+  UC_CourseReview ..> UC_DeleteReview : <<include>>
+
   ' ========== 教授用例 ==========
   usecase "选择授课课程\n(Select Courses\nto Teach)" as UC_Teach
   usecase "提交成绩\n(Submit Grades)" as UC_Grades
+  usecase "查看成绩分布\n(View Grade Distribution)" as UC_GradeDistribution
 
   ' ========== 注册主任用例 ==========
   usecase "维护学生信息\n(Maintain Student)" as UC_MaintainStudent
   usecase "维护教授信息\n(Maintain Professor)" as UC_MaintainProf
   usecase "关闭注册\n(Close Registration)" as UC_CloseReg
   usecase "查看审计日志" as UC_AuditLog
+  usecase "系统设置\n(System Settings)" as UC_SystemSettings
+  usecase "选课统计\n(Enrollment Statistics)" as UC_EnrollmentStats
 }
 
 ' ========== 参与者 ==========
@@ -73,11 +93,16 @@ actor "注册主任\n(Registrar)" as Registrar
 Student --> UC_Login
 Student --> UC_Register
 Student --> UC_ReportCard
+Student --> UC_Waitlist
+Student --> UC_CourseReview
+Student --> UC_Recommendation
+Student --> UC_GPATrend
 
 ' ========== 教授关系 ==========
 Professor --> UC_Login
 Professor --> UC_Teach
 Professor --> UC_Grades
+Professor --> UC_GradeDistribution
 
 ' ========== 注册主任关系 ==========
 Registrar --> UC_Login
@@ -85,6 +110,8 @@ Registrar --> UC_MaintainStudent
 Registrar --> UC_MaintainProf
 Registrar --> UC_CloseReg
 Registrar --> UC_AuditLog
+Registrar --> UC_SystemSettings
+Registrar --> UC_EnrollmentStats
 
 ' ========== 扩展关系 ==========
 UC_Register ..> UC_CloseReg : <<extend>>\n注册截止后\n无法选课
@@ -112,6 +139,47 @@ end note
 note right of UC_ReportCard
   显示所有学期的
   课程、成绩、学分
+end note
+
+note left of UC_Waitlist
+  候补名单功能:
+  - 课程满员时加入候补
+  - 有空位时自动通知
+  - 可随时取消候补
+end note
+
+note right of UC_CourseReview
+  课程评价功能:
+  - 提交评分(1-5星)和评论
+  - 修改/删除自己的评价
+  - 查看课程平均评分
+end note
+
+note left of UC_Recommendation
+  课程推荐功能:
+  - 基于成绩和兴趣推荐
+  - 考虑先修课完成情况
+  - 个性化课程列表
+end note
+
+note right of UC_SystemSettings
+  系统设置功能:
+  - 配置选课时间窗口
+  - 设置课程容量限制
+  - 管理系统参数
+end note
+
+note left of UC_EnrollmentStats
+  选课统计功能:
+  - 查看课程报名热度
+  - 各院系选课分布
+  - 历史趋势分析
+end note
+
+note right of UC_GPATrend
+  GPA趋势分析:
+  - 学生:查看学期GPA变化
+  - 教授:查看班级成绩分布
 end note
 
 @enduml

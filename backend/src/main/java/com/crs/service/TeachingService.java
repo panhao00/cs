@@ -36,8 +36,6 @@ import org.springframework.transaction.annotation.Transactional;
  * - No Course Offerings Available: 无资格授课 → 报错,用例终止
  * - Schedule Conflict: 时间冲突 → 报错并指出冲突课程
  * - Course Registration Closed: 注册关闭 → 提示并终止
- * <p>
- * 参考 AI 生成,经人工核验与调整。时间冲突检测算法由人工设计。
  */
 @Slf4j
 @Service

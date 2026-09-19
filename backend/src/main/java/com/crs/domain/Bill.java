@@ -37,6 +37,18 @@ public class Bill {
     @Column(name = "sent_at")
     private LocalDateTime sentAt;
 
+    @Column(name = "retry_count", nullable = false)
+    private int retryCount = 0;
+
+    @Column(name = "max_retries", nullable = false)
+    private int maxRetries = 3;
+
+    @Column(name = "next_retry_at")
+    private LocalDateTime nextRetryAt;
+
+    @Column(name = "last_error", length = 1000)
+    private String lastError;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

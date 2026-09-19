@@ -381,4 +381,213 @@ activate AC
 
   note over User: Pinia存储token + 用户信息\nlocalStorage持久化
 
+' ==================================================
+' 图5: 学生加入候补名单
+' ==================================================
+== 学生加入候补名单流程 ==
+
+actor 学生 as WL_Student
+participant "WaitlistController" as WLC
+participant "WaitlistService" as WLS
+participant "CourseOffering\nRepository" as WL_OR
+participant "WaitlistRepository" as WL_WR
+participant "EnrollmentRepository" as WL_ER
+participant "NotificationService" as WL_NS
+database "数据库" as WL_DB
+
+WL_Student -> WLC: POST /api/waitlist/join\n{offeringId: 1}
+activate WLC
+  WLC -> WLC: RoleGuard.requireStudent()
+  WLC -> WLS: joinWaitlist(userId, offeringId)
+  activate WLS
+
+  WLS -> WL_OR: findById(offeringId)
+  WL_OR -> WL_DB: SELECT * FROM course_offering
+  WL_DB --> WL_OR: CourseOffering
+  WL_OR --> WLS: CourseOffering
+
+  WLS -> WLS: 校验开设存在且状态为OPEN
+
+  WLS -> WL_ER: findByOfferingIdAndStatus(ENROLLED)
+  WL_ER -> WL_DB: SELECT * FROM enrollment
+  WL_DB --> WL_ER: List<Enrollment>
+  WL_ER --> WLS: List<Enrollment>
+
+  WLS -> WLS: 校验: enrolledCount < maxCapacity\n(已满才允许候补)
+
+  WLS -> WL_WR: existsByOfferingIdAndStudentId()
+  WL_WR -> WL_DB: SELECT COUNT(*)
+  WL_DB --> WL_WR: count
+  WL_WR --> WLS: count
+
+  alt 已在候补名单中
+    WLS --> WLC: ApiException(409 "已在候补名单中")
+    WLC --> WL_Student: 409 Conflict
+  else 正常加入
+    WLS -> WL_WR: save(Waitlist)
+    WL_WR -> WL_DB: INSERT INTO waitlist
+    WL_DB --> WL_WR: waitlistId
+    WL_WR --> WLS: Waitlist
+
+    WLS -> WL_NS: notifyWaitlistJoined(studentId, offeringId)
+    WLS --> WLC: WaitlistDTO
+    deactivate WLS
+    WLC --> WL_Student: 201 Created
+  end
+deactivate WLC
+
+' ==================================================
+' 图6: 课程评价
+' ==================================================
+== 课程评价流程 ==
+
+actor 学生 as RV_Student
+participant "ReviewController" as RC2
+participant "ReviewService" as RV_RS
+participant "CourseOffering\nRepository" as RV_OR
+participant "EnrollmentRepository" as RV_ER
+participant "ReviewRepository" as RV_RVR
+database "数据库" as RV_DB
+
+RV_Student -> RC2: POST /api/reviews\n?offeringId=1\n{rating: 5, comment: "课程很好"}
+activate RC2
+  RC2 -> RC2: RoleGuard.requireStudent()
+  RC2 -> RV_RS: submitReview(studentId, offeringId, request)
+  activate RV_RS
+
+  RV_RS -> RV_OR: findById(offeringId)
+  RV_OR -> RV_DB: SELECT * FROM course_offering
+  RV_DB --> RV_OR: CourseOffering
+  RV_OR --> RV_RS: CourseOffering
+
+  RV_RS -> RV_ER: findByOfferingIdAndStatus(ENROLLED)
+  RV_ER -> RV_DB: SELECT * FROM enrollment\nWHERE status='ENROLLED'
+  RV_DB --> RV_ER: List<Enrollment>
+  RV_ER --> RV_RS: List<Enrollment>
+
+  RV_RS -> RV_RS: 校验: 学生是否已选过该课程
+
+  alt 未选过该课程
+    RV_RS --> RC2: ApiException(403 "只有已选过该课程的学生才能评价")
+    RC2 --> RV_Student: 403 Forbidden
+  else 已选课
+    RV_RS -> RV_RVR: existsByOfferingIdAndStudentId()
+    RV_RVR -> RV_DB: SELECT COUNT(*)
+    RV_DB --> RV_RVR: count
+    RV_RVR --> RV_RS: count
+
+    alt 已有评价
+      RV_RS --> RC2: ApiException(409 "已评价过,请使用修改功能")
+      RC2 --> RV_Student: 409 Conflict
+    else 首次评价
+      RV_RS -> RV_RVR: save(Review)
+      RV_RVR -> RV_DB: INSERT INTO review
+      RV_DB --> RV_RVR: reviewId
+      RV_RVR --> RV_RS: Review
+      RV_RS --> RC2: ReviewDTO
+    end
+  end
+  deactivate RV_RS
+  RC2 --> RV_Student: 201 Created + ReviewDTO
+deactivate RC2
+
+' ==================================================
+' 图7: 获取课程推荐
+' ==================================================
+== 获取课程推荐流程 ==
+
+actor 学生 as REC_Student
+participant "Recommendation\nController" as RecC
+participant "Recommendation\nService" as RecS
+participant "CourseOffering\nRepository" as Rec_OR
+participant "EnrollmentRepository" as Rec_ER
+participant "CatalogAdapter" as Rec_CA
+database "数据库" as Rec_DB
+
+REC_Student -> RecC: GET /api/recommendations\n?semester=2026-FALL
+activate RecC
+  RecC -> RecC: RoleGuard.requireStudent()
+  RecC -> RecS: getRecommendations(studentId, semester)
+  activate RecS
+
+  RecS -> Rec_ER: findByStudentIdAndStatus(ENROLLED)
+  Rec_ER -> Rec_DB: SELECT * FROM enrollment\nWHERE student_id=? AND status='ENROLLED'
+  Rec_DB --> Rec_ER: List<Enrollment>
+  Rec_ER --> RecS: List<Enrollment>
+
+  RecS -> RecS: 获取学生已完成课程ID集合\n+ 当前学期已选课程ID集合
+
+  RecS -> Rec_OR: findBySemesterAndStatus(OPEN)
+  Rec_OR -> Rec_DB: SELECT * FROM course_offering\nWHERE semester=? AND status='OPEN'
+  Rec_DB --> Rec_OR: List<CourseOffering>
+  Rec_OR --> RecS: List<CourseOffering>
+
+  loop 每个OPEN状态的开设
+    RecS -> Rec_CA: getCourse(courseId)
+    Rec_CA --> RecS: Course
+
+    RecS -> Rec_ER: countByOfferingIdAndStatus(ENROLLED)
+    Rec_ER -> Rec_DB: SELECT COUNT(*)
+    Rec_DB --> Rec_ER: enrolledCount
+    Rec_ER --> RecS: enrolledCount
+
+    RecS -> RecS: 跳过已修/已选/满容量课程
+
+    RecS -> RecS: 计算四维度分数:\n1. 先修课程链\n2. 专业匹配\n3. 热门推荐\n4. 学分平衡
+
+    RecS -> RecS: 综合评分 = 各维度加权求和
+  end
+
+  RecS -> RecS: 按推荐分数降序排列
+  RecS --> RecC: List<CourseRecommendation>
+  deactivate RecS
+  RecC --> REC_Student: 200 OK + 推荐列表
+deactivate RecC
+
+' ==================================================
+' 图8: 选课统计
+' ==================================================
+== 选课统计流程 ==
+
+actor 用户 as ES_User
+participant "EnrollmentStats\nController" as ESC
+participant "EnrollmentStats\nService" as ESS
+participant "CourseOffering\nRepository" as ES_OR
+participant "EnrollmentRepository" as ES_ER
+database "数据库" as ES_DB
+
+ES_User -> ESC: GET /api/stats/overview\n?semester=2026-FALL
+activate ESC
+  ESC -> ESC: RoleGuard.requireAnyLogin()
+  ESC -> ESS: getSemesterOverview(semester)
+  activate ESS
+
+  ESS -> ES_OR: findBySemesterAndStatus(OPEN)
+  ES_OR -> ES_DB: SELECT * FROM course_offering\nWHERE semester=? AND status='OPEN'
+  ES_DB --> ES_OR: List<CourseOffering>
+  ES_OR --> ESS: List<CourseOffering>
+
+  ESS -> ES_OR: findBySemesterAndStatus(COMMITTED)
+  ES_OR -> ES_DB: SELECT * FROM course_offering\nWHERE semester=? AND status='COMMITTED'
+  ES_DB --> ES_OR: List<CourseOffering>
+  ES_OR --> ESS: List<CourseOffering>
+
+  ESS -> ESS: 合并OPEN + COMMITTED开设\n统计totalCourses
+
+  loop 每个课程开设
+    ESS -> ES_ER: findByOfferingIdAndStatus(ENROLLED)
+    ES_ER -> ES_DB: SELECT * FROM enrollment
+    ES_DB --> ES_ER: List<Enrollment>
+    ES_ER --> ESS: List<Enrollment>
+
+    ESS -> ESS: 累加totalEnrolled\n累加totalCapacity\n收集uniqueStudents
+  end
+
+  ESS -> ESS: 计算averageEnrollmentRate\n= totalEnrolled / totalCapacity
+
+  ESS --> ESC: Map{totalCourses, totalStudents,\ntotalEnrollments, averageEnrollmentRate}
+  deactivate ESS
+  ESC --> ES_User: 200 OK + 统计概览
+deactivate ESC
+
 @enduml

@@ -1,0 +1,14 @@
+# 测试环境: H2 内存数据库 (仅用于单元测试)
+spring:
+  datasource:
+    url: jdbc:h2:mem:crs;DB_CLOSE_DELAY=-1;MODE=MySQL;IGNORECASE=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql

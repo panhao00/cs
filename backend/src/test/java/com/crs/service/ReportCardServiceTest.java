@@ -1,12 +1,14 @@
 package com.crs.service;
 
 import com.crs.common.ApiException;
+import com.crs.domain.BillStatus;
 import com.crs.domain.Course;
 import com.crs.domain.CourseOffering;
 import com.crs.domain.Enrollment;
 import com.crs.domain.EnrollmentStatus;
 import com.crs.domain.Grade;
 import com.crs.domain.User;
+import com.crs.repository.BillRepository;
 import com.crs.repository.CourseOfferingRepository;
 import com.crs.repository.CourseRepository;
 import com.crs.repository.EnrollmentRepository;
@@ -53,6 +55,12 @@ class ReportCardServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private BillRepository billRepository;
+
+    @Mock
+    private AuditService auditService;
+
     @InjectMocks
     private ReportCardService reportCardService;
 
@@ -76,6 +84,10 @@ class ReportCardServiceTest {
         professor.setUsername("prof_smith");
         professor.setRole(com.crs.domain.Role.PROFESSOR);
         professor.setName("Bob Smith");
+
+        // 默认: 无未缴清账单(正常通过 arrears 检查)
+        lenient().when(billRepository.existsByStudentIdAndStatus(STUDENT_ID, BillStatus.PENDING)).thenReturn(false);
+        lenient().when(billRepository.existsByStudentIdAndStatus(STUDENT_ID, BillStatus.FAILED)).thenReturn(false);
     }
 
     // ==================== getReportCard ====================
@@ -298,6 +310,37 @@ class ReportCardServiceTest {
         // Assert: GPA = (4.0*3 + 1.0*3 + 0.0*3) / 9 = 15/9 ≈ 1.67
         assertEquals(1.67, result.getGpa(), 0.01);
         assertEquals(3, result.getEntries().size());
+    }
+
+    @Test
+    @DisplayName("查看成绩单 - 有未缴清账单时拒绝查看 (PENDING)")
+    void getReportCard_pendingBill_throwsForbidden() {
+        // Arrange: 存在 PENDING 账单
+        when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
+        when(billRepository.existsByStudentIdAndStatus(STUDENT_ID, BillStatus.PENDING)).thenReturn(true);
+
+        // Act & Assert
+        ApiException ex = assertThrows(ApiException.class, () ->
+                reportCardService.getReportCard(STUDENT_ID));
+        assertEquals(403, ex.getStatus());
+        assertEquals("有未缴清的账单，成绩单暂不可用", ex.getMessage());
+        verifyNoInteractions(enrollmentRepository);
+    }
+
+    @Test
+    @DisplayName("查看成绩单 - 有未缴清账单时拒绝查看 (FAILED)")
+    void getReportCard_failedBill_throwsForbidden() {
+        // Arrange: 存在 FAILED 账单
+        when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
+        when(billRepository.existsByStudentIdAndStatus(STUDENT_ID, BillStatus.PENDING)).thenReturn(false);
+        when(billRepository.existsByStudentIdAndStatus(STUDENT_ID, BillStatus.FAILED)).thenReturn(true);
+
+        // Act & Assert
+        ApiException ex = assertThrows(ApiException.class, () ->
+                reportCardService.getReportCard(STUDENT_ID));
+        assertEquals(403, ex.getStatus());
+        assertEquals("有未缴清的账单，成绩单暂不可用", ex.getMessage());
+        verifyNoInteractions(enrollmentRepository);
     }
 
     // ==================== 辅助方法 ====================

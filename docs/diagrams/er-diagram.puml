@@ -31,6 +31,8 @@ entity "app_user" as AU {
   status : VARCHAR(20) <<DEFAULT 'ACTIVE'>>
   graduation_date : DATE
   department : VARCHAR(50)
+  failed_login_attempts : INT <<DEFAULT 0>>
+  locked_until : TIMESTAMP NULL
   created_at : TIMESTAMP
   updated_at : TIMESTAMP
 }
@@ -115,6 +117,10 @@ entity "bill" as B {
   * semester : VARCHAR(20) <<NOT NULL>>
   * amount : DECIMAL(10,2) <<NOT NULL>>
   status : VARCHAR(20) <<DEFAULT 'PENDING'>>
+  retry_count : INT <<DEFAULT 0>>
+  max_retries : INT <<DEFAULT 3>>
+  next_retry_at : TIMESTAMP
+  last_error : VARCHAR(1000)
   sent_at : TIMESTAMP
   created_at : TIMESTAMP
 }
@@ -132,6 +138,7 @@ entity "audit_log" as AL {
 }
 
 ' ========== notification 通知 ==========
+' type 枚举: ENROLLMENT, DROPPED, GRADE_POSTED, BILL_GENERATED, CAPACITY_WARNING
 entity "notification" as N {
   * **id** : BIGINT <<PK, AUTO_INCREMENT>>
   --
@@ -151,8 +158,35 @@ entity "system_setting" as SS {
   --
   * setting_key : VARCHAR(100) <<UK, NOT NULL>>
   * setting_value : VARCHAR(500) <<NOT NULL>>
+  description : VARCHAR(500)
   created_at : TIMESTAMP
   updated_at : TIMESTAMP
+}
+
+' ========== waitlist 候补名单 ==========
+entity "waitlist" as W {
+  * **id** : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * offering_id : BIGINT <<FK, NOT NULL>>
+  * student_id : BIGINT <<FK, NOT NULL>>
+  * position : INT <<NOT NULL>>
+  status : VARCHAR(20) <<DEFAULT 'WAITING'>>
+  created_at : TIMESTAMP
+  --
+  <<UNIQUE(offering_id, student_id)>>
+}
+
+' ========== review 课程评价 ==========
+entity "review" as R {
+  * **id** : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * offering_id : BIGINT <<FK, NOT NULL>>
+  * student_id : BIGINT <<FK, NOT NULL>>
+  * rating : INT <<NOT NULL>>
+  comment : VARCHAR(500)
+  created_at : TIMESTAMP
+  --
+  <<UNIQUE(offering_id, student_id)>>
 }
 
 ' ========== 关系 ==========
@@ -163,6 +197,8 @@ AU ||--o{ B : "学生账单\nstudent_id"
 AU ||--o{ N : "学生通知\nstudent_id"
 AU ||--o{ COf : "教授授课\nprofessor_id"
 AU ||--o{ AL : "审计操作\nactor_id"
+AU ||--o{ W : "学生候补记录\nstudent_id"
+AU ||--o{ R : "学生评价\nstudent_id"
 
 CO ||--o{ COf : "课程开设\ncourse_id"
 CO ||--o| CO : "先修课\nprerequisite_id"
@@ -170,6 +206,8 @@ CO ||--o| CO : "先修课\nprerequisite_id"
 COf ||--o{ SI : "课表项引用\noffering_id"
 COf ||--o{ E : "选课名单\noffering_id"
 COf ||--o{ G : "班级成绩\noffering_id"
+COf ||--o{ W : "课程候补队列\noffering_id"
+COf ||--o{ R : "课程评价\noffering_id"
 
 S ||--o{ SI : "课表包含\nschedule_id"
 
@@ -198,6 +236,17 @@ end note
 note bottom of E
   性能索引:
   - idx_enrollment_offering
+end note
+
+note bottom of W
+  性能索引:
+  - idx_waitlist_offering (offering_id, status)
+  - idx_waitlist_student (student_id, status)
+end note
+
+note bottom of R
+  性能索引:
+  - idx_review_offering (offering_id)
 end note
 
 @enduml

@@ -7,6 +7,11 @@ export const userApi = {
     return api.get('/users', { params: role ? { role } : {} })
   },
 
+  /** 获取单个用户详情 */
+  getById(id) {
+    return api.get(`/users/${id}`)
+  },
+
   /** 创建用户 */
   create(body) {
     return api.post('/users', body)
@@ -22,7 +27,10 @@ export const userApi = {
   /** 删除用户(必须先 INACTIVE) */
   remove(id) {
     return api.delete(`/users/${id}`)
-  }
+  },
+  /** 管理员重置用户密码 */
+  resetPassword: (id, newPassword) =>
+    api.put(`/users/${id}/reset-password`, { newPassword })
 }
 
 /** 注册周期管理 API(对应用例 7.8 Close Registration) */
@@ -40,5 +48,9 @@ export const registrationApi = {
     return api.post('/registration/close', null, {
       params: semester ? { semester } : {}
     })
+  },
+  /** 推进注册阶段(open → add-drop → closed) */
+  advancePhase() {
+    return api.post('/registration/phase/advance')
   }
 }

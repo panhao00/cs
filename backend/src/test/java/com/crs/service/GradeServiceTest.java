@@ -62,6 +62,9 @@ class GradeServiceTest {
     @Mock
     private AuditService auditService;
 
+    @Mock
+    private com.crs.common.SemesterConfig semesterConfig;
+
     @InjectMocks
     private GradeService gradeService;
 
@@ -123,6 +126,10 @@ class GradeServiceTest {
         enrollment.setOfferingId(OFFERING_ID);
         enrollment.setStudentId(STUDENT_ID);
         enrollment.setStatus(EnrollmentStatus.ENROLLED);
+
+        // Mock SemesterConfig
+        lenient().when(semesterConfig.getPreviousSemester()).thenReturn(PREVIOUS_SEMESTER);
+        lenient().when(semesterConfig.getCurrentSemester()).thenReturn("2026-FALL");
     }
 
     // ==================== getTaughtOfferings 测试 ====================

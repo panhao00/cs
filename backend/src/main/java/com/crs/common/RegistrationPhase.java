@@ -69,12 +69,12 @@ public class RegistrationPhase {
     }
 
     /**
-     * 设置注册周期状态。
+     * 设置注册周期状态(线程安全)。
      *
      * @param newPhase 新状态,仅允许 "open"、"add-drop"、"closed"
      * @throws IllegalArgumentException 如果 newPhase 不在合法值范围内
      */
-    public void setPhase(String newPhase) {
+    public synchronized void setPhase(String newPhase) {
         if (newPhase == null || !VALID_PHASES.contains(newPhase)) {
             throw new IllegalArgumentException(
                     "非法的注册周期值: '" + newPhase + "',合法值为: " + VALID_PHASES);

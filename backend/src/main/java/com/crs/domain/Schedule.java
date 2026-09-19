@@ -11,7 +11,9 @@ import org.hibernate.annotations.UpdateTimestamp;
  * 课表(学生某学期的选课计划)。
  */
 @Entity
-@Table(name = "schedule")
+@Table(name = "schedule", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"student_id", "semester"})
+})
 @Getter
 @Setter
 public class Schedule {

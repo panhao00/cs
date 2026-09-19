@@ -1,6 +1,7 @@
 package com.crs.service;
 
 import com.crs.common.RegistrationPhase;
+import com.crs.common.SemesterConfig;
 import com.crs.domain.CourseOffering;
 import com.crs.domain.Enrollment;
 import com.crs.domain.EnrollmentStatus;
@@ -57,6 +58,12 @@ class BillingRetryTest {
     @Mock
     private RegistrationPhase registrationPhase;
 
+    @Mock
+    private SemesterConfig semesterConfig;
+
+    @Mock
+    private BillingAsyncService billingAsyncService;
+
     @InjectMocks
     private RegistrationService registrationService;
 
@@ -67,8 +74,7 @@ class BillingRetryTest {
         ReflectionTestUtils.setField(registrationService, "minStudents", 3);
         ReflectionTestUtils.setField(registrationService, "maxStudents", 10);
         ReflectionTestUtils.setField(registrationService, "maxPrimary", 4);
-        ReflectionTestUtils.setField(registrationService, "billingRetryCount", 3);
-        ReflectionTestUtils.setField(registrationService, "billingRetryDelayMs", 100L); // 缩短测试时间
+        lenient().when(semesterConfig.getCurrentSemester()).thenReturn(SEMESTER);
     }
 
     @Test
@@ -102,6 +108,10 @@ class BillingRetryTest {
         when(offeringRepository.findBySemesterAndStatus(SEMESTER, OfferingStatus.COMMITTED))
                 .thenReturn(List.of());
 
+        // Mock Billing 异步服务
+        when(billingAsyncService.notifyBillingSystemAsync(eq(SEMESTER), anyList()))
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(true));
+
         // When
         CloseRegistrationResult result = registrationService.closeRegistration(SEMESTER);
 
@@ -111,23 +121,10 @@ class BillingRetryTest {
     }
 
     @Test
-    @DisplayName("关闭注册 - Billing 配置可验证")
-    void closeRegistration_billingRetryConfigIsConfigurable() {
-        // 验证配置字段可以正确设置
-        assertEquals(3, ReflectionTestUtils.getField(registrationService, "billingRetryCount"));
-        assertEquals(100L, ReflectionTestUtils.getField(registrationService, "billingRetryDelayMs"));
-    }
-
-    @Test
-    @DisplayName("关闭注册 - Billing 重试次数和延迟配置验证")
-    void billingRetryConfig_defaultValues() {
-        // 验证通过 @Value 注入的字段存在且可设置
-        // 默认值来自 @Value 注解: retry-count=3, retry-delay-ms=1000
-        ReflectionTestUtils.setField(registrationService, "billingRetryCount", 5);
-        ReflectionTestUtils.setField(registrationService, "billingRetryDelayMs", 2000L);
-
-        assertEquals(5, (int) ReflectionTestUtils.getField(registrationService, "billingRetryCount"));
-        assertEquals(2000L, (long) ReflectionTestUtils.getField(registrationService, "billingRetryDelayMs"));
+    @DisplayName("关闭注册 - Billing 异步服务配置验证")
+    void closeRegistration_billingAsyncServiceConfigured() {
+        // 验证 BillingAsyncService 被正确注入
+        assertNotNull(ReflectionTestUtils.getField(registrationService, "billingAsyncService"));
     }
 
     // ==================== 辅助方法 ====================

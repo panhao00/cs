@@ -7,6 +7,11 @@ export const catalogApi = {
     return api.get('/catalog/offerings', { params: { semester } })
   },
 
+  /** 获取单个课程开设详情 */
+  getOffering(id) {
+    return api.get(`/catalog/offerings/${id}`)
+  },
+
 }
 
 /** 课表 API */

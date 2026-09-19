@@ -13,17 +13,17 @@ import com.crs.domain.OfferingStatus;
 import com.crs.domain.Schedule;
 import com.crs.domain.ScheduleItem;
 import com.crs.domain.ScheduleState;
+import com.crs.domain.User;
 import com.crs.repository.CourseOfferingRepository;
 import com.crs.repository.CourseRepository;
 import com.crs.repository.EnrollmentRepository;
-import com.crs.repository.GradeRepository;
 import com.crs.repository.ScheduleItemRepository;
 import com.crs.repository.ScheduleRepository;
+import com.crs.repository.UserRepository;
 import com.crs.web.dto.CapacityWarning;
 import com.crs.web.dto.ScheduleResponse;
 import com.crs.web.dto.SelectOfferingsRequest;
 import com.crs.web.dto.SubmitResult;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,8 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,12 +51,9 @@ import org.springframework.transaction.annotation.Transactional;
  * - No Schedule Found: Update/Delete 时找不到课表 → 报错
  * - Course Catalog System Unavailable: 错误显示,用例终止
  * - Course Registration Closed: 注册已关闭 → 提示并终止
- * <p>
- * 参考 AI 生成,经人工核验与调整。核心校验顺序、并发控制方案由人工决定。
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ScheduleService {
 
     private final ScheduleRepository scheduleRepository;
@@ -65,10 +62,16 @@ public class ScheduleService {
     private final CourseRepository courseRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final CatalogService catalogService;
-    private final GradeRepository gradeRepository;
     private final NotificationService notificationService;
     private final RegistrationPhase registrationPhase;
     private final AuditService auditService;
+    private final com.crs.common.PrerequisiteChecker prerequisiteChecker;
+
+    @Autowired(required = false)
+    private CapacityNotificationService capacityNotificationService;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Value("${crs.rules.max-primary:4}")
     private int maxPrimary;
@@ -81,6 +84,29 @@ public class ScheduleService {
 
     @Value("${crs.rules.offering-min-students:3}")
     private int offeringMinStudents;
+
+    public ScheduleService(
+            ScheduleRepository scheduleRepository,
+            ScheduleItemRepository itemRepository,
+            CourseOfferingRepository offeringRepository,
+            CourseRepository courseRepository,
+            EnrollmentRepository enrollmentRepository,
+            CatalogService catalogService,
+            NotificationService notificationService,
+            RegistrationPhase registrationPhase,
+            AuditService auditService,
+            com.crs.common.PrerequisiteChecker prerequisiteChecker) {
+        this.scheduleRepository = scheduleRepository;
+        this.itemRepository = itemRepository;
+        this.offeringRepository = offeringRepository;
+        this.courseRepository = courseRepository;
+        this.enrollmentRepository = enrollmentRepository;
+        this.catalogService = catalogService;
+        this.notificationService = notificationService;
+        this.registrationPhase = registrationPhase;
+        this.auditService = auditService;
+        this.prerequisiteChecker = prerequisiteChecker;
+    }
 
     // ==================== 查询 ====================
 
@@ -361,13 +387,26 @@ public class ScheduleService {
                     .orElse(offering);
             long currentEnrolled = enrollmentRepository.countByOfferingIdAndStatus(
                     lockedOffering.getId(), EnrollmentStatus.ENROLLED);
+            int lockedMaxCap = lockedOffering.getMaxCapacity() != null
+                    ? lockedOffering.getMaxCapacity() : offeringMaxStudents;
             if (currentEnrolled >= offeringMaxStudents
-                    || currentEnrolled >= lockedOffering.getMaxCapacity()) {
+                    || currentEnrolled >= lockedMaxCap) {
+                // 课程已满员: 发送 DB 通知 + WebSocket 实时推送
+                notificationService.notifyCapacityWarning(studentId, offering.getId(),
+                        courseId, (int) currentEnrolled, lockedMaxCap);
+                if (capacityNotificationService != null) {
+                    capacityNotificationService.notifyOfferingFull(studentId, courseId,
+                            offering.getId(), (int) currentEnrolled, lockedMaxCap);
+                }
                 errors.add(new SubmitResult.ValidationError(
                         item.getOfferingId(), courseId, "CAPACITY_FULL",
                         "课程 " + courseId + " 已满员("
-                                + currentEnrolled + "/" + lockedOffering.getMaxCapacity() + ")"));
+                                + currentEnrolled + "/" + lockedMaxCap + ")"));
                 continue;
+            } else if (currentEnrolled >= lockedMaxCap - 1) {
+                // 课程接近满员(仅剩 1 个名额): 发送预警通知
+                notificationService.notifyCapacityWarning(studentId, offering.getId(),
+                        courseId, (int) currentEnrolled, lockedMaxCap);
             }
 
             // 4. 时间冲突校验(检测实际时间重叠)
@@ -388,6 +427,23 @@ public class ScheduleService {
             enrollment.setStudentId(studentId);
             enrollment.setStatus(EnrollmentStatus.ENROLLED);
             enrollmentRepository.save(enrollment);
+
+            // 并发安全: 插入后重新校验容量,防止并发选课导致超额
+            long postInsertCount = enrollmentRepository.countByOfferingIdAndStatus(
+                    offering.getId(), EnrollmentStatus.ENROLLED);
+            if (postInsertCount > lockedMaxCap) {
+                // 回滚: 移除刚插入的选课记录
+                enrollment.setStatus(EnrollmentStatus.CANCELLED);
+                enrollmentRepository.save(enrollment);
+                errors.add(new SubmitResult.ValidationError(
+                        item.getOfferingId(), courseId, "CAPACITY_FULL",
+                        "课程 " + courseId + " 并发选课导致超额("
+                                + postInsertCount + "/" + lockedMaxCap + "),请重试"));
+                // 通知学生选课失败
+                notificationService.notifyEnrollmentFailed(studentId, offering.getId(),
+                        courseId, "课程已满员,并发选课冲突");
+                continue;
+            }
 
             // 标记 enrolled_in
             item.setStatus(ItemStatus.ENROLLED_IN);
@@ -533,25 +589,10 @@ public class ScheduleService {
     }
 
     /**
-     * 学生是否通过先修课。
-     * 查询 Grade 表中是否有该课程及格成绩 (A/B/C/D,排除 F/I/NULL)。
-     * 当前学期正在选修的课程不算先修课已通过。
+     * 学生是否通过先修课。委托给 PrerequisiteChecker。
      */
     private boolean hasPassedPrerequisite(Long studentId, String prerequisiteCourseId) {
-        List<com.crs.domain.Grade> grades = gradeRepository.findByStudentId(studentId);
-        Set<String> passed = new HashSet<>();
-        for (com.crs.domain.Grade g : grades) {
-            String grade = g.getGrade();
-            if (grade != null && !grade.isEmpty()
-                    && !grade.equals("F") && !grade.equals("I")) {
-                // 需查询该成绩对应开设的 courseId
-                CourseOffering o = offeringRepository.findById(g.getOfferingId()).orElse(null);
-                if (o != null) {
-                    passed.add(o.getCourseId());
-                }
-            }
-        }
-        return passed.contains(prerequisiteCourseId);
+        return prerequisiteChecker.hasPassedPrerequisite(studentId, prerequisiteCourseId);
     }
 
     /** 从开设 Roster 移除学生 */
@@ -617,24 +658,63 @@ public class ScheduleService {
         return TimeConflictUtil.isConflict(days1, times1, days2, times2);
     }
 
-    /** 转换为响应 DTO */
+    /**
+     * 转换为响应 DTO。
+     * <p>
+     * 优化: 使用批量查询替代 N+1 查询,将每个 ScheduleItem 的 4 次 DB 查询
+     * 减少为全局 4 次批量查询(offerings/courses/enrollmentCounts/professors),
+     * 通过 Map 缓存结果避免循环内查询。
+     */
     private ScheduleResponse toResponse(Schedule schedule, Long studentId) {
         List<ScheduleItem> items = itemRepository.findByScheduleId(schedule.getId());
+        if (items.isEmpty()) {
+            return new ScheduleResponse(
+                    schedule.getId(), studentId, schedule.getSemester(),
+                    schedule.getState(), List.of(), 0, 0);
+        }
+
+        // 1. 收集所有 offeringIds, 一次性查询所有 offerings
+        List<Long> offeringIds = items.stream()
+                .map(ScheduleItem::getOfferingId).distinct().toList();
+        Map<Long, CourseOffering> offeringMap = offeringRepository.findByIdIn(offeringIds).stream()
+                .collect(java.util.stream.Collectors.toMap(CourseOffering::getId, o -> o));
+
+        // 2. 收集所有 courseIds, 一次性查询所有 courses
+        List<String> courseIds = offeringMap.values().stream()
+                .map(CourseOffering::getCourseId).distinct().toList();
+        Map<String, Course> courseMap = courseRepository.findAllById(courseIds).stream()
+                .collect(java.util.stream.Collectors.toMap(Course::getCourseId, c -> c));
+
+        // 3. 一次性查询所有 enrollment counts
+        List<Object[]> countResults = enrollmentRepository.countByOfferingIdsAndStatus(
+                offeringIds, EnrollmentStatus.ENROLLED);
+        Map<Long, Long> enrollmentCountMap = new HashMap<>();
+        for (Object[] row : countResults) {
+            enrollmentCountMap.put((Long) row[0], (Long) row[1]);
+        }
+
+        // 4. 收集所有 professorIds, 一次性查询所有教师姓名
+        List<Long> professorIds = offeringMap.values().stream()
+                .map(CourseOffering::getProfessorId).filter(java.util.Objects::nonNull)
+                .distinct().toList();
+        Map<Long, String> professorNameMap = new HashMap<>();
+        if (!professorIds.isEmpty()) {
+            userRepository.findAllById(professorIds).forEach(u ->
+                    professorNameMap.put(u.getId(), u.getName()));
+        }
+
+        // 5. 构建 DTO 列表
         List<ScheduleResponse.ScheduleItemDTO> itemDtos = new ArrayList<>();
         int primary = 0, alternate = 0;
 
         for (ScheduleItem item : items) {
-            CourseOffering o = offeringRepository.findById(item.getOfferingId()).orElse(null);
+            CourseOffering o = offeringMap.get(item.getOfferingId());
             if (o == null) continue;
-            Course c = courseRepository.findById(o.getCourseId()).orElse(null);
-            long enrolled = enrollmentRepository.countByOfferingIdAndStatus(
-                    o.getId(), EnrollmentStatus.ENROLLED);
-            String profName = null;
-            if (o.getProfessorId() != null) {
-                profName = offeringRepository.findById(item.getOfferingId())
-                        .flatMap(off -> catalogService.getOffering(off.getId()))
-                        .map(dto -> dto.getProfessorName()).orElse(null);
-            }
+            Course c = courseMap.get(o.getCourseId());
+            long enrolled = enrollmentCountMap.getOrDefault(o.getId(), 0L);
+            String profName = o.getProfessorId() != null
+                    ? professorNameMap.get(o.getProfessorId()) : null;
+            int maxCap = o.getMaxCapacity() != null ? o.getMaxCapacity() : 10;
             itemDtos.add(new ScheduleResponse.ScheduleItemDTO(
                     item.getId(),
                     item.getOfferingId(),
@@ -648,7 +728,7 @@ public class ScheduleService {
                     o.getProfessorId(),
                     profName,
                     (int) enrolled,
-                    o.getMaxCapacity()
+                    maxCap
             ));
             if (item.getKind() == ItemKind.PRIMARY) primary++;
             else alternate++;

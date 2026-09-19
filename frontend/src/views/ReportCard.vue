@@ -12,15 +12,15 @@
         <div class="gpa-details">
           <div class="gpa-detail-item">
             <span class="detail-number">{{ report.entries?.length || 0 }}</span>
-            <span class="detail-label">Courses</span>
+            <span class="detail-label">课程数</span>
           </div>
           <div class="gpa-detail-item">
             <span class="detail-number">{{ totalCredits }}</span>
-            <span class="detail-label">Credits</span>
+            <span class="detail-label">学分</span>
           </div>
           <div class="gpa-detail-item">
             <span class="detail-number">{{ report.semester }}</span>
-            <span class="detail-label">Semester</span>
+            <span class="detail-label">学期</span>
           </div>
         </div>
       </div>
@@ -193,5 +193,65 @@ function gradeTagType(grade) {
 .empty-grades {
   color: var(--color-text-muted);
   opacity: 0.5;
+}
+
+/* --- Mobile Responsive --- */
+@media (max-width: 768px) {
+  /* GPA summary - stack vertically */
+  .gpa-summary {
+    flex-direction: column;
+    gap: 20px;
+    padding: 20px;
+  }
+
+  .gpa-main {
+    padding-right: 0;
+    padding-bottom: 20px;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .gpa-value {
+    font-size: 32px;
+  }
+
+  .gpa-details {
+    gap: 24px;
+    justify-content: center;
+  }
+
+  .detail-number {
+    font-size: 18px;
+  }
+
+  /* Scrollable table */
+  .refined-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .card-title {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .gpa-summary {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .gpa-value {
+    font-size: 28px;
+  }
+
+  .gpa-details {
+    gap: 16px;
+  }
+
+  .gpa-detail-item {
+    align-items: center;
+  }
 }
 </style>

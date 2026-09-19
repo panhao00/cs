@@ -1,0 +1,78 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <title>Icon Generator</title>
+</head>
+<body>
+  <canvas id="canvas" width="512" height="512"></canvas>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Draw background circle
+    ctx.fillStyle = '#1a73e8';
+    ctx.beginPath();
+    ctx.arc(256, 256, 256, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Draw graduation cap
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(176, 180);
+    ctx.lineTo(256, 130);
+    ctx.lineTo(336, 180);
+    ctx.lineTo(256, 210);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Draw cap tassel
+    ctx.strokeStyle = '#ffc107';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(316, 170);
+    ctx.lineTo(346, 220);
+    ctx.stroke();
+    
+    ctx.fillStyle = '#ffc107';
+    ctx.beginPath();
+    ctx.arc(346, 225, 8, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Draw book
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.roundRect(186, 260, 140, 90, 8);
+    ctx.fill();
+    
+    ctx.fillStyle = '#e3f2fd';
+    ctx.beginPath();
+    ctx.roundRect(191, 265, 60, 80, 4);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(261, 265, 60, 80, 4);
+    ctx.fill();
+    
+    // Draw text lines
+    ctx.fillStyle = '#90caf9';
+    ctx.fillRect(201, 280, 40, 4);
+    ctx.fillRect(201, 290, 35, 4);
+    ctx.fillRect(201, 300, 45, 4);
+    ctx.fillRect(271, 280, 40, 4);
+    ctx.fillRect(271, 290, 35, 4);
+    ctx.fillRect(271, 300, 45, 4);
+    
+    // Draw "CRS" text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 48px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('CRS', 256, 430);
+    
+    // Export as PNG
+    const link = document.createElement('a');
+    link.download = 'icon.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  </script>
+</body>
+</html>

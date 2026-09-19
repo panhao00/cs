@@ -1,23 +1,26 @@
-# 开发环境: H2 内存数据库,零配置开箱即用
+# 开发环境: MySQL 8.x
 spring:
   datasource:
-    url: jdbc:h2:mem:crs;DB_CLOSE_DELAY=-1;MODE=MySQL;IGNORECASE=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/crs?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
+    database-platform: org.hibernate.dialect.MySQLDialect
     defer-datasource-initialization: true
   sql:
     init:
       mode: always
       schema-locations: classpath:schema.sql
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+      continue-on-error: true  # MySQL 不支持 CREATE INDEX IF NOT EXISTS, 重启时忽略索引错误
+
+# 开发环境 JWT 密钥(仅用于本地开发,生产环境必须通过 JWT_SECRET 环境变量设置)
+crs:
+  security:
+    jwt-secret: ${JWT_SECRET:dev-only-unsafe-secret-key-for-local-development-32chars}
 
 logging:
   level:
+    com.crs: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE

@@ -65,6 +65,31 @@ public class User {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "failed_login_attempts", nullable = false)
+    private int failedLoginAttempts = 0;
+
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
+
+    /** 判断账户是否处于锁定状态 */
+    public boolean isLocked() {
+        return lockedUntil != null && LocalDateTime.now().isBefore(lockedUntil);
+    }
+
+    /** 记录一次失败登录尝试,达到上限时锁定账户 */
+    public void recordFailedAttempt(int maxAttempts, long lockDurationMs) {
+        failedLoginAttempts++;
+        if (failedLoginAttempts >= maxAttempts) {
+            lockedUntil = LocalDateTime.now().plusNanos(lockDurationMs * 1_000_000L);
+        }
+    }
+
+    /** 登录成功后清除失败计数和锁定状态 */
+    public void clearLoginAttempts() {
+        failedLoginAttempts = 0;
+        lockedUntil = null;
+    }
+
     /** 用户状态枚举 */
     public enum UserStatus {
         ACTIVE,
