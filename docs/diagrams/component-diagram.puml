@@ -67,7 +67,10 @@ node "后端服务器 (Spring Boot 3.3)" as BackendNode {
   }
 
   package "控制器层 (18个Controller)" as CtrlPkg {
+<<<<<<< HEAD
    package "账户/课程控制器" as CtrlGrp1 {
+=======
+>>>>>>> 971b9611bb3993a1c4bbb545d57893b8205be73c
     artifact "AuthController\n登录认证" as AuthCtrl
     artifact "ScheduleController\n课表管理" as SchedCtrl
     artifact "TeachingController\n教授选课" as TeachCtrl
@@ -90,11 +93,17 @@ node "后端服务器 (Spring Boot 3.3)" as BackendNode {
     artifact "SystemSettingController\n系统设置" as SysSettingCtrl
     artifact "AuditLogController\n审计日志查询" as AuditLogCtrl
     artifact "DeadlineReminderController\n截止日期提醒" as DeadlineCtrl
+<<<<<<< HEAD
    }
   }
 
   package "服务层 (21个Service)" as SvcPkg {
    package "核心业务服务" as SvcGrp1 {
+=======
+  }
+
+  package "服务层 (21个Service)" as SvcPkg {
+>>>>>>> 971b9611bb3993a1c4bbb545d57893b8205be73c
     artifact "AuthService\n登录认证" as AuthSvc
     artifact "ScheduleService\n选课逻辑" as SchedSvc
     artifact "TeachingService\n授课逻辑" as TeachSvc
@@ -114,13 +123,19 @@ node "后端服务器 (Spring Boot 3.3)" as BackendNode {
     artifact "GradeStatsService\n成绩统计" as GradeStatsSvc
     artifact "SystemSettingService\n系统设置" as SysSettingSvc
     artifact "AuditLogQueryService\n审计日志查询" as AuditLogSvc
+<<<<<<< HEAD
    }
    package "异步/计费服务" as SvcGrp3 {
+=======
+>>>>>>> 971b9611bb3993a1c4bbb545d57893b8205be73c
     artifact "BillingAsyncService\n异步计费(@Async)" as BillAsyncSvc
     artifact "BillingRetryService\n计费重试" as BillRetrySvc
     artifact "CapacityNotificationService\n容量预警通知" as CapNotiSvc
     artifact "DeadlineReminderService\n截止日期提醒" as DeadlineSvc
+<<<<<<< HEAD
    }
+=======
+>>>>>>> 971b9611bb3993a1c4bbb545d57893b8205be73c
   }
 
   package "数据访问层" as DAPkg {
@@ -234,8 +249,13 @@ RegSvc --> RegPhase : 阶段校验
 SchedSvc --> TimeUtil : 冲突检测
 TeachSvc --> TimeUtil : 冲突检测
 
+<<<<<<< HEAD
 SchedSvc ..> Billing : HTTP模拟调用
 BillAsyncSvc ..> Billing : 异步HTTP调用
+=======
+SchedSvc -.->|HTTP模拟调用| Billing
+BillAsyncSvc -.->|异步HTTP调用| Billing
+>>>>>>> 971b9611bb3993a1c4bbb545d57893b8205be73c
 
 ' ========== 部署视图 ==========
 note as N1
